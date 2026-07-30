@@ -1,25 +1,24 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import {
   FileText,
-  Download,
   Copy,
   RefreshCw,
-  Layers,
   ArrowLeft,
   Sparkles,
   CheckCircle2,
   AlertTriangle,
   HelpCircle,
-  Clock,
-  History as HistoryIcon,
   Loader2,
   FileCode,
   FileDown,
-  Info,
-  PlusCircle
+  PlusCircle,
+  BookmarkCheck,
+  Lock,
+  XCircle,
+  ArrowRight
 } from 'lucide-react';
-import Card, { CardHeader, CardTitle } from '../components/common/Card';
+import Card from '../components/common/Card';
 import Badge from '../components/common/Badge';
 import Button from '../components/common/Button';
 import briefApi from '../api/briefApi';
@@ -28,10 +27,12 @@ import { useToast } from '../context/ToastContext';
 
 export const ResearchBrief = () => {
   const { researchId: paramResearchId } = useParams();
+  const navigate = useNavigate();
   const {
     currentResearch,
     currentBrief,
     briefVersions,
+    evidences,
     history,
     fetchHistory,
     loadResearch,
@@ -45,8 +46,10 @@ export const ResearchBrief = () => {
   const { showToast } = useToast();
   const activeResId = paramResearchId || currentResearch?._id;
 
-  const [activeSectionId, setActiveSectionId] = useState('');
   const [copying, setCopying] = useState(false);
+  const [isReviewing, setIsReviewing] = useState(false);
+  const [editableSections, setEditableSections] = useState([]);
+  const [savingReview, setSavingReview] = useState(false);
 
   useEffect(() => {
     fetchHistory();
@@ -60,7 +63,45 @@ export const ResearchBrief = () => {
     }
   }, [activeResId, history, currentResearch, loadResearch]);
 
-  // Initial Brief Generation if no brief exists
+  useEffect(() => {
+    if (currentBrief && currentBrief.sections) {
+      setEditableSections(currentBrief.sections);
+    }
+  }, [currentBrief]);
+
+  const handleSectionTextChange = (idx, newContent) => {
+    const updated = [...editableSections];
+    updated[idx].content = newContent;
+    setEditableSections(updated);
+  };
+
+  const handleRejectSectionContent = (idx) => {
+    const updated = [...editableSections];
+    updated[idx].content = `[REJECTED - UNSUPPORTED CONCLUSION]: This claim was flagged and rejected during human review due to insufficient empirical evidence backing in source documentation.`;
+    setEditableSections(updated);
+    showToast(`Section ${idx + 1} conclusion rejected`);
+  };
+
+  const handleSaveApproveReview = async (status = 'APPROVED') => {
+    if (!currentBrief?._id) return;
+    setSavingReview(true);
+    try {
+      const res = await briefApi.updateBriefVersion(currentBrief._id, {
+        sections: editableSections,
+        reviewStatus: status
+      });
+      if (res?.success) {
+        setIsReviewing(false);
+        showToast(`Research Brief conclusions reviewed & status marked as ${status}!`);
+        await loadResearch(activeResId);
+      }
+    } catch (err) {
+      showToast(err.message || 'Failed to save brief review', 'error');
+    } finally {
+      setSavingReview(false);
+    }
+  };
+
   const handleGenerateInitial = async () => {
     if (!activeResId) return;
     try {
@@ -70,7 +111,6 @@ export const ResearchBrief = () => {
     }
   };
 
-  // Regenerate narrative
   const handleRegenerate = async () => {
     if (!activeResId) return;
     try {
@@ -80,7 +120,6 @@ export const ResearchBrief = () => {
     }
   };
 
-  // Export Markdown
   const handleExportMarkdown = async () => {
     if (!currentBrief?._id) return;
     try {
@@ -100,7 +139,6 @@ export const ResearchBrief = () => {
     }
   };
 
-  // Export PDF / HTML
   const handleExportPdf = async () => {
     if (!currentBrief?._id) return;
     try {
@@ -118,7 +156,6 @@ export const ResearchBrief = () => {
     }
   };
 
-  // Copy to Clipboard
   const handleCopyClipboard = () => {
     if (!currentBrief) return;
     let fullText = `${currentBrief.title}\n\n${currentBrief.summary}\n\n`;
@@ -133,25 +170,25 @@ export const ResearchBrief = () => {
 
   if (loading && !currentResearch) {
     return (
-      <div className="space-y-4 max-w-4xl mx-auto py-12 text-center">
-        <div className="h-12 w-12 mx-auto rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-center text-indigo-400 animate-spin">
+      <div className="space-y-6 max-w-4xl mx-auto py-16 text-center">
+        <div className="h-12 w-12 mx-auto rounded-xl bg-[#1F150C]/10 border border-[#1F150C]/20 flex items-center justify-center text-[#1F150C] animate-spin">
           <Sparkles className="w-6 h-6" />
         </div>
-        <p className="text-sm text-slate-300">Loading research brief workspace...</p>
+        <p className="text-base text-[#5E5648] font-medium">Loading research brief workspace...</p>
       </div>
     );
   }
 
   if (!currentResearch && (!history || history.length === 0)) {
     return (
-      <Card className="p-12 text-center space-y-6 max-w-2xl mx-auto my-12 bg-slate-900/80">
-        <div className="h-16 w-16 mx-auto rounded-2xl bg-indigo-950/80 border border-indigo-800 flex items-center justify-center text-indigo-400">
+      <Card className="p-12 text-center space-y-6 max-w-3xl mx-auto my-12 bg-[#FAF8F2] border border-[#CBC3B2]">
+        <div className="h-16 w-16 mx-auto rounded-2xl bg-[#1F150C]/10 border border-[#1F150C]/20 flex items-center justify-center text-[#1F150C]">
           <FileText className="w-8 h-8" />
         </div>
         <div className="space-y-2">
-          <h2 className="text-xl font-bold text-white">No Research Projects Found</h2>
-          <p className="text-base text-slate-300">
-            You need to create a research project and approve its plan before generating an evidence-based brief.
+          <h2 className="text-2xl font-bold text-[#1F150C]">No Research Projects Found</h2>
+          <p className="text-base text-[#5E5648]">
+            Generate a research plan first. You need to create a project and approve its plan before synthesizing a brief.
           </p>
         </div>
         <Link to="/new">
@@ -163,42 +200,91 @@ export const ResearchBrief = () => {
     );
   }
 
-  if (!currentResearch) {
+  /* STEP VALIDATION SAFEGUARD */
+  const isEvidenceRetrieved = Boolean(evidences && evidences.length > 0);
+  if (currentResearch && !isEvidenceRetrieved && !currentBrief) {
     return (
-      <div className="space-y-4 max-w-4xl mx-auto py-12 text-center">
-        <div className="h-12 w-12 mx-auto rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-center text-indigo-400 animate-spin">
-          <Sparkles className="w-6 h-6" />
-        </div>
-        <p className="text-sm text-slate-300">Selecting active research project...</p>
+      <div className="space-y-8 max-w-4xl mx-auto font-sans">
+        <Card className="p-10 text-center space-y-6 bg-[#FAF8F2] border border-[#CBC3B2] shadow-2xs">
+          <div className="h-16 w-16 mx-auto rounded-2xl bg-[#D97706]/10 border border-[#D97706]/30 flex items-center justify-center text-[#D97706]">
+            <Lock className="w-8 h-8" />
+          </div>
+          <div className="space-y-2">
+            <Badge variant="amber">Step Locked: Evidence Retrieval Required</Badge>
+            <h2 className="text-3xl font-bold text-[#1F150C] tracking-tight">Complete Previous Step</h2>
+            <p className="text-base text-[#5E5648] max-w-lg mx-auto leading-relaxed">
+              You must retrieve evidence before generating the Research Brief for "{currentResearch.title}".
+            </p>
+          </div>
+
+          <div className="bg-[#EDE8D8] p-5 rounded-xl border border-[#CBC3B2] max-w-md mx-auto space-y-3 text-left">
+            <span className="text-xs font-bold uppercase tracking-wider text-[#5E5648] block">Prerequisite Checklist:</span>
+            <div className="space-y-2 text-sm font-semibold">
+              <div className="flex items-center gap-2 text-[#1F150C]">
+                <CheckCircle2 className="w-5 h-5 text-[#2E7D32]" />
+                <span>1. Upload Source Documents</span>
+              </div>
+              <div className="flex items-center gap-2 text-[#B3261E]">
+                <XCircle className="w-5 h-5 text-[#B3261E]" />
+                <span>2. Retrieve Evidence Chunks (Missing)</span>
+              </div>
+            </div>
+          </div>
+
+          <Button
+            variant="primary"
+            size="lg"
+            onClick={() => navigate(`/evidence/${currentResearch._id}`)}
+            icon={ArrowRight}
+          >
+            Go to Evidence Retrieval
+          </Button>
+        </Card>
       </div>
     );
   }
 
   return (
-    <div className="space-y-8 max-w-7xl mx-auto">
-      {/* Back Button & Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div className="space-y-2">
+    <div className="space-y-12 max-w-7xl mx-auto font-sans">
+      {/* Sticky Top Toolbar */}
+      <div className="sticky top-0 z-30 bg-[#FAF8F2]/95 backdrop-blur-md border-b border-[#CBC3B2] py-4 px-8 -mx-8 rounded-b-2xl shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="space-y-1">
           <Link
             to={`/details/${currentResearch._id}`}
-            className="text-sm font-semibold text-slate-300 hover:text-white flex items-center gap-1.5 mb-1"
+            className="text-sm font-semibold text-[#5E5648] hover:text-[#1F150C] flex items-center gap-1.5"
           >
             <ArrowLeft className="w-4 h-4" /> Back to Research Workspace
           </Link>
-          <h1 className="text-2xl md:text-3xl font-extrabold text-white tracking-tight flex items-center gap-3">
-            <FileText className="w-8 h-8 text-indigo-400" />
-            Evidence-Based Research Brief
+          <h1 className="text-lg font-bold text-[#1F150C] tracking-tight flex items-center gap-2.5">
+            <FileText className="w-5 h-5 text-[#1F150C]" />
+            {currentBrief ? currentBrief.title : 'Evidence-Based Research Brief'}
           </h1>
-          <p className="text-base text-slate-300 leading-relaxed">
-            Synthesized report grounded strictly in stored empirical evidence for "{currentResearch.title}".
-          </p>
         </div>
 
-        {/* Toolbar Controls */}
+        {/* Toolbar Action Buttons */}
         {currentBrief && (
           <div className="flex items-center gap-3 flex-wrap">
+            <Button
+              variant={isReviewing ? 'secondary' : 'outline'}
+              size="md"
+              onClick={() => setIsReviewing(!isReviewing)}
+              icon={BookmarkCheck}
+            >
+              {isReviewing ? 'Exit Review' : 'Review Conclusions'}
+            </Button>
+            {isReviewing && (
+              <Button
+                variant="success"
+                size="md"
+                disabled={savingReview}
+                onClick={() => handleSaveApproveReview('APPROVED')}
+                icon={CheckCircle2}
+              >
+                Approve Final Brief
+              </Button>
+            )}
             <Button variant="outline" size="md" onClick={handleCopyClipboard} icon={Copy}>
-              {copying ? 'Copied!' : 'Copy Text'}
+              {copying ? 'Copied!' : 'Copy'}
             </Button>
             <Button variant="secondary" size="md" onClick={handleExportMarkdown} icon={FileCode}>
               Markdown
@@ -214,7 +300,7 @@ export const ResearchBrief = () => {
               icon={generatingBrief ? Loader2 : RefreshCw}
               className={generatingBrief ? 'animate-spin' : ''}
             >
-              {generatingBrief ? 'Regenerating...' : 'Regenerate Narrative'}
+              {generatingBrief ? 'Regenerating...' : 'Regenerate'}
             </Button>
           </div>
         )}
@@ -222,29 +308,29 @@ export const ResearchBrief = () => {
 
       {/* GENERATING SKELETON */}
       {generatingBrief && (
-        <Card className="p-12 text-center bg-slate-900 border border-indigo-900/40 space-y-4 animate-pulse">
-          <Loader2 className="w-12 h-12 text-indigo-400 animate-spin mx-auto" />
-          <h3 className="text-xl font-bold text-white">Synthesizing Evidence-Based Brief</h3>
-          <p className="text-base text-slate-300 max-w-lg mx-auto">
-            Constructing 11 structured sections, validating claim support, attaching explicit document citations, and conducting gap analysis...
+        <Card className="p-12 text-center bg-[#FAF8F2] border border-[#1F150C] space-y-4 animate-pulse">
+          <Loader2 className="w-10 h-10 text-[#1F150C] animate-spin mx-auto" />
+          <h3 className="text-xl font-bold text-[#1F150C]">Synthesizing 12-Section Evidence-Based Brief</h3>
+          <p className="text-base text-[#5E5648] max-w-lg mx-auto">
+            Constructing structured report sections, attaching traceable citations, and performing gap analysis...
           </p>
         </Card>
       )}
 
-      {/* NO BRIEF STATE: Generate Initial Brief */}
+      {/* NO BRIEF STATE */}
       {!currentBrief && !generatingBrief && (
-        <Card className="p-12 text-center space-y-6 bg-slate-900/80">
-          <div className="h-16 w-16 mx-auto rounded-2xl bg-indigo-950/80 border border-indigo-800 flex items-center justify-center text-indigo-400">
+        <Card className="p-12 text-center space-y-6 bg-[#FAF8F2] border border-[#CBC3B2]">
+          <div className="h-16 w-16 mx-auto rounded-2xl bg-[#1F150C]/10 border border-[#1F150C]/20 flex items-center justify-center text-[#1F150C]">
             <Sparkles className="w-8 h-8" />
           </div>
           <div className="space-y-2 max-w-md mx-auto">
-            <h2 className="text-xl font-bold text-white">No Brief Generated Yet</h2>
-            <p className="text-base text-slate-300">
-              Generate a structured 11-section research brief from your evaluated empirical evidence set.
+            <h2 className="text-2xl font-bold text-[#1F150C]">No Brief Generated Yet</h2>
+            <p className="text-base text-[#5E5648]">
+              Synthesize a structured 12-section research brief from your evaluated empirical evidence set.
             </p>
           </div>
           <Button variant="primary" size="lg" onClick={handleGenerateInitial} icon={Sparkles}>
-            Generate Research Brief
+            Generate 12-Section Brief
           </Button>
         </Card>
       )}
@@ -255,21 +341,21 @@ export const ResearchBrief = () => {
           {/* Main Brief Document Body (3 cols) */}
           <div className="lg:col-span-3 space-y-8">
             {/* Document Header Banner */}
-            <Card className="bg-gradient-to-r from-slate-900 via-slate-900 to-slate-950 space-y-5 p-8 border-indigo-500/30">
-              <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+            <Card className="bg-[#FAF8F2] border border-[#CBC3B2] space-y-6 p-8 shadow-2xs">
+              <div className="flex items-center justify-between border-b border-[#CBC3B2] pb-4">
                 <div className="flex items-center gap-3">
-                  <Badge variant="emerald" className="text-sm px-3.5 py-1">v{currentBrief.version}.0 FINAL BRIEF</Badge>
-                  <span className="text-sm font-mono text-slate-300">
+                  <Badge variant="emerald">v{currentBrief.version}.0 FINAL BRIEF</Badge>
+                  <span className="text-sm font-mono text-[#5E5648]">
                     Generated {new Date(currentBrief.createdAt || Date.now()).toLocaleDateString()}
                   </span>
                 </div>
 
-                <div className="flex items-center gap-2.5">
-                  <span className="text-sm font-semibold text-slate-300">Version:</span>
+                <div className="flex items-center gap-3">
+                  <span className="text-sm font-semibold text-[#5E5648]">Version:</span>
                   <select
                     value={currentBrief._id}
                     onChange={(e) => switchBriefVersion(e.target.value)}
-                    className="px-3.5 py-2 bg-slate-950 border border-slate-800 rounded-xl text-sm font-mono text-indigo-300 focus:outline-none min-h-[44px]"
+                    className="px-3 py-2 bg-[#EDE8D8] border border-[#CBC3B2] rounded-xl text-sm font-mono text-[#1F150C] focus:outline-none"
                   >
                     {briefVersions.map((v) => (
                       <option key={v._id} value={v._id}>
@@ -280,44 +366,67 @@ export const ResearchBrief = () => {
                 </div>
               </div>
 
-              <h1 className="text-2xl md:text-3xl font-extrabold text-white tracking-tight">
+              <h1 className="text-3xl md:text-4xl font-bold text-[#1F150C] tracking-tight">
                 {currentBrief.title}
               </h1>
 
-              <blockquote className="p-5 rounded-2xl bg-slate-950/80 border-l-4 border-indigo-500 text-base text-slate-200 italic leading-relaxed">
+              {/* Summary Box */}
+              <div className="p-6 rounded-xl bg-[#EDE8D8] border border-[#CBC3B2] text-lg text-[#1F150C] italic leading-relaxed">
                 "{currentBrief.summary}"
-              </blockquote>
+              </div>
             </Card>
 
-            {/* 11 Report Sections */}
+            {/* 12 Report Sections */}
             <div className="space-y-8">
-              {currentBrief.sections?.map((sec, idx) => (
-                <Card key={idx} id={`section-${idx}`} className="space-y-4 p-8 border-slate-800">
-                  <h2 className="text-xl font-bold text-white tracking-tight border-b border-slate-800 pb-3">
-                    {sec.heading}
-                  </h2>
-                  <p className="text-base text-slate-200 leading-relaxed font-sans whitespace-pre-line">
-                    {sec.content}
-                  </p>
+              {(isReviewing ? editableSections : currentBrief.sections)?.map((sec, idx) => (
+                <Card key={idx} id={`section-${idx}`} className="space-y-4 p-8 bg-[#FAF8F2] border border-[#CBC3B2]">
+                  <div className="flex items-center justify-between border-b border-[#CBC3B2] pb-4">
+                    <h2 className="text-2xl font-bold text-[#1F150C] tracking-tight flex items-center gap-3">
+                      <BookmarkCheck className="w-6 h-6 text-[#1F150C]" />
+                      {sec.heading}
+                    </h2>
+                    {isReviewing && (
+                      <Button
+                        variant="danger"
+                        size="md"
+                        onClick={() => handleRejectSectionContent(idx)}
+                      >
+                        Reject Conclusion
+                      </Button>
+                    )}
+                  </div>
+
+                  {!isReviewing ? (
+                    <p className="text-base text-[#1F150C] leading-[1.7] font-sans whitespace-pre-line">
+                      {sec.content}
+                    </p>
+                  ) : (
+                    <textarea
+                      rows={5}
+                      value={sec.content}
+                      onChange={(e) => handleSectionTextChange(idx, e.target.value)}
+                      className="w-full p-4 bg-[#EDE8D8] border border-[#CBC3B2] rounded-xl text-base text-[#1F150C] font-sans leading-relaxed focus:outline-none focus:border-[#1F150C] min-h-[140px]"
+                    />
+                  )}
 
                   {/* Inline Citation Chips */}
                   {sec.citations && sec.citations.length > 0 && (
-                    <div className="pt-4 border-t border-slate-800/80 space-y-3">
-                      <span className="text-xs font-bold uppercase tracking-wider text-indigo-400 block">
-                        Traceable Evidence Citations:
+                    <div className="pt-4 border-t border-[#CBC3B2] space-y-3">
+                      <span className="text-xs font-bold uppercase tracking-wider text-[#5E5648] block">
+                        Traceable Citations:
                       </span>
                       <div className="flex flex-wrap gap-3">
                         {sec.citations.map((c, cIdx) => (
                           <div
                             key={cIdx}
-                            className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 text-sm text-slate-200 space-y-1.5 font-mono hover:border-indigo-500/50 transition-colors"
+                            className="p-3.5 rounded-xl bg-[#EDE8D8] border border-[#CBC3B2] text-sm text-[#1F150C] space-y-1.5 font-mono hover:border-[#1F150C] transition-colors"
                           >
-                            <div className="flex items-center gap-2 text-indigo-300 font-bold">
-                              <FileText className="w-4 h-4 text-indigo-400" />
+                            <div className="flex items-center gap-2 text-[#1F150C] font-semibold">
+                              <FileText className="w-4 h-4 shrink-0 text-[#1F150C]" />
                               <span>{c.docName}</span>
-                              <span className="text-slate-400">• Chunk {c.chunkNumber}</span>
+                              <span className="text-[#5E5648]">• Chunk {c.chunkNumber}</span>
                             </div>
-                            <p className="text-xs text-slate-300 italic">"{c.excerpt}"</p>
+                            <p className="text-xs text-[#5E5648] italic">"{c.excerpt}"</p>
                           </div>
                         ))}
                       </div>
@@ -331,17 +440,17 @@ export const ResearchBrief = () => {
           {/* Sidebar Panel (1 col) */}
           <div className="space-y-6">
             {/* Table of Contents */}
-            <Card className="space-y-4 p-6 sticky top-24">
-              <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2 border-b border-slate-800 pb-3">
-                <FileText className="w-5 h-5 text-indigo-400" />
-                Table of Contents
+            <Card className="space-y-4 p-6 sticky top-24 bg-[#FAF8F2] border border-[#CBC3B2]">
+              <h3 className="text-sm font-bold text-[#1F150C] uppercase tracking-wider flex items-center gap-2 border-b border-[#CBC3B2] pb-3">
+                <FileText className="w-5 h-5 text-[#1F150C]" />
+                Contents (12 Sections)
               </h3>
-              <nav className="space-y-1.5 text-sm font-medium">
+              <nav className="space-y-1.5 text-sm font-medium max-h-[400px] overflow-y-auto">
                 {currentBrief.sections?.map((sec, idx) => (
                   <a
                     key={idx}
                     href={`#section-${idx}`}
-                    className="block px-3 py-2 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800/70 transition-colors line-clamp-1 min-h-[38px] flex items-center"
+                    className="block px-3 py-2 rounded-lg text-[#5E5648] hover:text-[#1F150C] hover:bg-[#EDE8D8] transition-colors truncate"
                   >
                     {sec.heading}
                   </a>
@@ -349,64 +458,78 @@ export const ResearchBrief = () => {
               </nav>
             </Card>
 
-            {/* Evidence Strength Quality Card */}
-            <Card className="space-y-4 p-6">
-              <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2 border-b border-slate-800 pb-3">
-                <Sparkles className="w-5 h-5 text-emerald-400" />
-                Evidence Strength
+            {/* Evidence Quality Metrics */}
+            <Card className="space-y-4 p-6 bg-[#FAF8F2] border border-[#CBC3B2]">
+              <h3 className="text-sm font-bold text-[#1F150C] uppercase tracking-wider flex items-center gap-2 border-b border-[#CBC3B2] pb-3">
+                <Sparkles className="w-5 h-5 text-[#2E7D32]" />
+                Evidence Quality
               </h3>
               <div className="grid grid-cols-3 gap-3 text-center">
-                <div className="p-3 rounded-xl bg-emerald-950/40 border border-emerald-800/60">
-                  <span className="block text-2xl font-bold text-emerald-400">
+                <div className="p-3 rounded-xl bg-[#2E7D32]/10 border border-[#2E7D32]/20">
+                  <span className="block text-2xl font-bold text-[#2E7D32]">
                     {currentBrief.evidenceQuality?.highCount || 0}
                   </span>
-                  <span className="text-xs text-slate-300 font-semibold">High</span>
+                  <span className="text-xs text-[#2E7D32] font-semibold">High</span>
                 </div>
-                <div className="p-3 rounded-xl bg-amber-950/40 border border-amber-800/60">
-                  <span className="block text-2xl font-bold text-amber-400">
+                <div className="p-3 rounded-xl bg-[#D97706]/10 border border-[#D97706]/20">
+                  <span className="block text-2xl font-bold text-[#D97706]">
                     {currentBrief.evidenceQuality?.mediumCount || 0}
                   </span>
-                  <span className="text-xs text-slate-300 font-semibold">Medium</span>
+                  <span className="text-xs text-[#D97706] font-semibold">Medium</span>
                 </div>
-                <div className="p-3 rounded-xl bg-rose-950/40 border border-rose-800/60">
-                  <span className="block text-2xl font-bold text-rose-400">
+                <div className="p-3 rounded-xl bg-[#EDE8D8] border border-[#CBC3B2]">
+                  <span className="block text-2xl font-bold text-[#5E5648]">
                     {currentBrief.evidenceQuality?.lowCount || 0}
                   </span>
-                  <span className="text-xs text-slate-300 font-semibold">Low</span>
+                  <span className="text-xs text-[#5E5648] font-semibold">Low</span>
                 </div>
               </div>
             </Card>
 
-            {/* Gap Analysis Summary */}
-            {currentBrief.gapAnalysis && (
-              <Card className="space-y-4 p-6">
-                <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2 border-b border-slate-800 pb-3">
-                  <AlertTriangle className="w-5 h-5 text-amber-400" />
-                  Gap Analysis
+            {/* Weak Evidence Box */}
+            {currentBrief.weakEvidence && currentBrief.weakEvidence.length > 0 && (
+              <Card className="space-y-4 p-6 bg-[#D97706]/10 border border-[#D97706]/20">
+                <h3 className="text-sm font-bold text-[#D97706] uppercase tracking-wider flex items-center gap-2 border-b border-[#D97706]/20 pb-3">
+                  <AlertTriangle className="w-5 h-5 text-[#D97706]" />
+                  Weak Evidence Flagged
                 </h3>
-                {currentBrief.gapAnalysis.recommendations && (
-                  <div className="space-y-2 text-sm text-slate-300">
-                    <span className="text-xs font-bold text-slate-200 block uppercase tracking-wider">Recommendations:</span>
-                    <ul className="list-disc pl-5 space-y-2 text-slate-300 leading-relaxed">
-                      {currentBrief.gapAnalysis.recommendations.map((rec, i) => (
-                        <li key={i}>{rec}</li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
+                <div className="space-y-3 text-sm">
+                  {currentBrief.weakEvidence.map((w, i) => (
+                    <div key={i} className="p-3.5 rounded-xl bg-[#EDE8D8] border border-[#D97706]/20 space-y-1.5">
+                      <p className="font-semibold text-[#1F150C]">"{w.claim}"</p>
+                      <p className="text-xs text-[#D97706]">Reason: {w.reason}</p>
+                      <p className="text-xs text-[#5E5648] italic">Suggested: {w.suggestedEvidence}</p>
+                    </div>
+                  ))}
+                </div>
               </Card>
             )}
 
-            {/* Follow-up Questions */}
+            {/* Recommendations Box */}
+            {currentBrief.gapAnalysis?.recommendations && (
+              <Card className="space-y-4 p-6 bg-[#FAF8F2] border border-[#CBC3B2]">
+                <h3 className="text-sm font-bold text-[#1F150C] uppercase tracking-wider flex items-center gap-2 border-b border-[#CBC3B2] pb-3">
+                  <CheckCircle2 className="w-5 h-5 text-[#2E7D32]" />
+                  Recommendations
+                </h3>
+                <ul className="list-disc pl-5 space-y-2 text-sm text-[#5E5648] leading-relaxed">
+                  {currentBrief.gapAnalysis.recommendations.map((rec, i) => (
+                    <li key={i}>{rec}</li>
+                  ))}
+                </ul>
+              </Card>
+            )}
+
+            {/* Unanswered Questions Box */}
             {currentBrief.followUpQuestions && (
-              <Card className="space-y-4 p-6">
-                <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2 border-b border-slate-800 pb-3">
-                  <HelpCircle className="w-5 h-5 text-indigo-400" />
-                  Follow-up Questions
+              <Card className="space-y-4 p-6 bg-[#FAF8F2] border border-[#CBC3B2]">
+                <h3 className="text-sm font-bold text-[#1F150C] uppercase tracking-wider flex items-center gap-2 border-b border-[#CBC3B2] pb-3">
+                  <HelpCircle className="w-5 h-5 text-[#1F150C]" />
+                  Unanswered Questions
                 </h3>
                 <div className="space-y-3 text-sm">
                   {currentBrief.followUpQuestions.map((q, i) => (
-                    <div key={i} className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 text-slate-200 leading-relaxed font-medium">
+                    <div key={i} className="p-3.5 rounded-xl bg-[#EDE8D8] border border-[#CBC3B2] text-[#1F150C] font-medium">
                       ❓ {q}
                     </div>
                   ))}

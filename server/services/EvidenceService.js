@@ -6,12 +6,9 @@ import { GeminiService } from './GeminiService.js';
 import { ApiError } from '../utils/apiResponse.js';
 import { logInfo, logWarn, logError } from '../middleware/logger.js';
 
-// In-memory fallback store
-const inMemoryEvidence = new Map();
-
 export class EvidenceService {
   /**
-   * Performs LLM-powered semantic retrieval and evidence classification via Gemini 2.5 Flash.
+   * Performs LLM-powered semantic retrieval and evidence classification via Gemini 2.5 Flash, saving results in MongoDB.
    */
   static async retrieveAndClassify(researchId) {
     logInfo('EVIDENCE_SERVICE', `Evidence Retrieval started for ResearchID=${researchId} [Timestamp: ${new Date().toISOString()}]`);
@@ -35,18 +32,10 @@ export class EvidenceService {
       throw new ApiError(400, 'No document chunks found. Please upload research documents before retrieving evidence.');
     }
 
-    const isConnected = mongoose.connection.readyState === 1;
+    logInfo('EVIDENCE_SERVICE', `[PIPELINE_AUDIT] Relevant Chunks Retrieved: ${chunks.length} chunks fetched for ResearchID=${researchId}`);
 
-    // Clear previous evidence for re-evaluation
-    if (isConnected) {
-      await Evidence.deleteMany({ researchId });
-    } else {
-      for (const [id, ev] of inMemoryEvidence.entries()) {
-        if (String(ev.researchId) === String(researchId)) {
-          inMemoryEvidence.delete(id);
-        }
-      }
-    }
+    // Clear previous evidence for re-evaluation in MongoDB
+    await Evidence.deleteMany({ researchId });
 
     const createdEvidences = [];
 
@@ -74,42 +63,23 @@ export class EvidenceService {
         }
 
         if (result && result.isRelevant) {
-          let evItem;
-          if (isConnected) {
-            evItem = await Evidence.create({
-              researchId,
-              planStepId: String(step.id || step.order),
-              documentId: chunk.documentId,
-              chunkId: String(chunk._id),
-              excerpt: result.excerpt,
-              classification: result.classification,
-              confidence: result.confidence,
-              reason: result.reason
-            });
-          } else {
-            const id = new mongoose.Types.ObjectId().toString();
-            evItem = {
-              _id: id,
-              researchId,
-              planStepId: String(step.id || step.order),
-              documentId: chunk.documentId,
-              chunkId: String(chunk._id),
-              excerpt: result.excerpt,
-              classification: result.classification,
-              confidence: result.confidence,
-              reason: result.reason,
-              createdAt: new Date(),
-              updatedAt: new Date()
-            };
-            inMemoryEvidence.set(id, evItem);
-          }
+          const evItem = await Evidence.create({
+            researchId,
+            planStepId: String(step.id || step.order),
+            documentId: chunk.documentId,
+            chunkId: String(chunk._id),
+            excerpt: result.excerpt,
+            classification: result.classification,
+            confidence: result.confidence,
+            reason: result.reason
+          });
 
           createdEvidences.push(evItem);
         }
       }
     }
 
-    logInfo('EVIDENCE_SERVICE', `Evidence Retrieval & Classification completed: ${createdEvidences.length} items classified. [Timestamp: ${new Date().toISOString()}]`);
+    logInfo('EVIDENCE_SERVICE', `[DB_WRITE] Evidence stored in collection 'evidences': Count=${createdEvidences.length}, DBInsertSuccess=${createdEvidences.length > 0 ? 'YES' : 'NO'}. [Timestamp: ${new Date().toISOString()}]`);
 
     return createdEvidences;
   }
@@ -152,15 +122,12 @@ export class EvidenceService {
   }
 
   /**
-   * Retrieves all classified evidence for a research project.
+   * Retrieves all classified evidence for a research project from MongoDB.
    */
   static async getEvidenceByResearchId(researchId) {
-    const isConnected = mongoose.connection.readyState === 1;
-    if (isConnected) {
-      return await Evidence.find({ researchId }).sort({ createdAt: -1 });
-    }
-    return Array.from(inMemoryEvidence.values())
-      .filter(e => String(e.researchId) === String(researchId));
+    const list = await Evidence.find({ researchId }).sort({ createdAt: -1 });
+    logInfo('EVIDENCE_SERVICE', `[PIPELINE_AUDIT] Evidence Viewer Query: Retrieved ${list.length} evidence items from collection 'evidences' for ResearchID=${researchId}`);
+    return list;
   }
 }
 

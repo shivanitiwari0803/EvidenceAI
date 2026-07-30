@@ -53,6 +53,19 @@ const briefVersionSchema = new mongoose.Schema(
       recommendations: [{ type: String }]
     },
     followUpQuestions: [{ type: String }],
+    unansweredQuestions: [{ type: String }],
+    weakEvidence: [
+      {
+        claim: { type: String },
+        reason: { type: String },
+        suggestedEvidence: { type: String }
+      }
+    ],
+    reviewStatus: {
+      type: String,
+      enum: ['PENDING', 'REVIEWED', 'APPROVED', 'REJECTED'],
+      default: 'PENDING'
+    },
     snapshot: [{ type: Object }],
     settings: {
       model: { type: String, default: 'OpenAI-Compatible Model' },

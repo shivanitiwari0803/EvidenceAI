@@ -7,13 +7,9 @@ import { Evidence } from '../models/Evidence.js';
 import { ApiError } from '../utils/apiResponse.js';
 import { logInfo, logWarn, logError } from '../middleware/logger.js';
 
-// In-memory fallback stores
-const inMemoryDocs = new Map();
-const inMemoryChunks = new Map();
-
 export class DocumentService {
   /**
-   * Upload and process a document (file upload or raw text paste).
+   * Upload and process a document (file upload or raw text paste) into MongoDB.
    */
   static async uploadDocument({ researchId, filename, buffer, textContent, mimeType }) {
     logInfo('DOCUMENT_SERVICE', `Upload started: File="${filename}", ResearchID=${researchId} [Timestamp: ${new Date().toISOString()}]`);
@@ -42,6 +38,18 @@ export class DocumentService {
           logWarn('DOCUMENT_SERVICE', `pdf-parse warning for "${filename}": ${pdfErr.message}. Attempting text buffer conversion.`);
           rawText = buffer.toString('utf-8').replace(/[^\x20-\x7E\n\r\t]/g, ' ').trim();
         }
+      } else if (filename.toLowerCase().endsWith('.docx') || normalizedMime.includes('wordprocessingml')) {
+        try {
+          const textMatches = buffer.toString('utf-8').match(/<w:t[^>]*>(.*?)<\/w:t>/gi);
+          if (textMatches && textMatches.length > 0) {
+            rawText = textMatches.map(m => m.replace(/<[^>]+>/g, '')).join(' ').trim();
+          } else {
+            rawText = buffer.toString('utf-8').replace(/[^\x20-\x7E\n\r\t]/g, ' ').trim();
+          }
+          logInfo('DOCUMENT_SERVICE', `DOCX text extraction completed for "${filename}". Length: ${rawText.length} chars.`);
+        } catch (docxErr) {
+          rawText = buffer.toString('utf-8').replace(/[^\x20-\x7E\n\r\t]/g, ' ').trim();
+        }
       } else {
         rawText = buffer.toString('utf-8').trim();
       }
@@ -54,64 +62,39 @@ export class DocumentService {
     // Hash generation for duplicate detection (filename + rawText)
     const hash = crypto.createHash('sha256').update(`${filename}_${rawText}`).digest('hex');
 
-    const isConnected = mongoose.connection.readyState === 1;
-
-    // Check Duplicate
-    let existing;
-    if (isConnected) {
-      existing = await Document.findOne({ researchId, hash });
-    } else {
-      existing = Array.from(inMemoryDocs.values()).find(d => String(d.researchId) === String(researchId) && d.hash === hash);
-    }
-
+    // Check Duplicate in MongoDB
+    const existing = await Document.findOne({ researchId, hash });
     if (existing) {
       logWarn('DOCUMENT_SERVICE', `Duplicate upload attempt rejected for file "${filename}" (Hash=${hash.slice(0, 10)}).`);
       throw new ApiError(409, `Duplicate document detected: "${filename}" has already been uploaded for this research project.`);
     }
 
-    // Save Document Entity
+    // Save Document Entity in MongoDB
     const fileSize = buffer ? buffer.length : Buffer.byteLength(rawText, 'utf-8');
 
-    let doc;
-    if (isConnected) {
-      doc = await Document.create({
-        researchId,
-        filename,
-        mimeType: normalizedMime,
-        fileSize,
-        rawText,
-        status: 'PROCESSING',
-        hash,
-        chunkCount: 0
-      });
-    } else {
-      const id = new mongoose.Types.ObjectId().toString();
-      doc = {
-        _id: id,
-        researchId,
-        filename,
-        mimeType: normalizedMime,
-        fileSize,
-        rawText,
-        status: 'PROCESSING',
-        hash,
-        chunkCount: 0,
-        createdAt: new Date(),
-        updatedAt: new Date()
-      };
-      inMemoryDocs.set(id, doc);
-    }
+    const doc = await Document.create({
+      researchId,
+      filename,
+      mimeType: normalizedMime,
+      fileSize,
+      rawText,
+      status: 'PROCESSING',
+      hash,
+      chunkCount: 0
+    });
 
-    logInfo('DOCUMENT_SERVICE', `Upload completed: DocID=${doc._id}, Filename="${filename}" [Timestamp: ${new Date().toISOString()}]`);
+    logInfo('DOCUMENT_SERVICE', `[DB_WRITE] Document saved in collection 'documents': DocID=${doc._id}, Filename="${filename}", ExtractedTextLength=${rawText.length} chars [Timestamp: ${new Date().toISOString()}]`);
 
     // Perform Semantic Chunking (~500 words, 75 words overlap)
     const chunks = await this.chunkDocument(doc);
+    const docCount = await Document.countDocuments({ researchId });
+    logInfo('DOCUMENT_SERVICE', `[DB_WRITE] Total Document Count in 'documents' collection for ResearchID=${researchId}: ${docCount}`);
 
     return { document: doc, chunksCount: chunks.length };
   }
 
   /**
-   * Splits a document into semantic chunks (~500 words, 75 overlap).
+   * Splits a document into semantic chunks (~500 words, 75 overlap) and inserts them into MongoDB.
    */
   static async chunkDocument(doc) {
     logInfo('DOCUMENT_SERVICE', `Chunking started for DocID=${doc._id}, Filename="${doc.filename}"...`);
@@ -121,9 +104,8 @@ export class DocumentService {
     const overlap = 75;
     const stepSize = chunkSize - overlap;
 
-    const createdChunks = [];
+    const chunkDocs = [];
     let chunkNumber = 1;
-    const isConnected = mongoose.connection.readyState === 1;
 
     for (let start = 0; start < words.length; start += stepSize) {
       const end = Math.min(start + chunkSize, words.length);
@@ -132,110 +114,62 @@ export class DocumentService {
 
       if (chunkText.trim().length === 0) continue;
 
-      let chunkObj;
-      if (isConnected) {
-        chunkObj = await DocumentChunk.create({
-          documentId: doc._id,
-          researchId: doc.researchId,
-          chunkNumber,
-          text: chunkText,
-          startPosition: start,
-          endPosition: end
-        });
-      } else {
-        const id = new mongoose.Types.ObjectId().toString();
-        chunkObj = {
-          _id: id,
-          documentId: doc._id,
-          researchId: doc.researchId,
-          chunkNumber,
-          text: chunkText,
-          startPosition: start,
-          endPosition: end,
-          createdAt: new Date(),
-          updatedAt: new Date()
-        };
-        inMemoryChunks.set(id, chunkObj);
-      }
+      chunkDocs.push({
+        documentId: doc._id,
+        researchId: doc.researchId,
+        chunkNumber,
+        text: chunkText,
+        startPosition: start,
+        endPosition: end
+      });
 
-      createdChunks.push(chunkObj);
       chunkNumber++;
 
       if (end >= words.length) break;
     }
 
-    // Update document status & count
-    if (isConnected) {
-      doc.chunkCount = createdChunks.length;
-      doc.status = 'PROCESSED';
-      await doc.save();
-    } else {
-      doc.chunkCount = createdChunks.length;
-      doc.status = 'PROCESSED';
-      doc.updatedAt = new Date();
-      inMemoryDocs.set(String(doc._id), doc);
+    let createdChunks = [];
+    if (chunkDocs.length > 0) {
+      createdChunks = await DocumentChunk.insertMany(chunkDocs);
     }
 
-    logInfo('DOCUMENT_SERVICE', `Chunking completed for DocID=${doc._id}: ${createdChunks.length} chunks generated. [Timestamp: ${new Date().toISOString()}]`);
+    // Update document status & chunk count in MongoDB
+    doc.chunkCount = createdChunks.length;
+    doc.status = 'PROCESSED';
+    await doc.save();
+
+    logInfo('DOCUMENT_SERVICE', `[DB_WRITE] Chunks inserted into collection 'documentchunks': DocID=${doc._id}, ChunksInserted=${createdChunks.length}. [Timestamp: ${new Date().toISOString()}]`);
 
     return createdChunks;
   }
 
   /**
-   * Retrieves all documents for a research project.
+   * Retrieves all documents for a research project from MongoDB.
    */
   static async getDocumentsByResearchId(researchId) {
-    const isConnected = mongoose.connection.readyState === 1;
-    if (isConnected) {
-      return await Document.find({ researchId }).sort({ createdAt: -1 });
-    }
-    return Array.from(inMemoryDocs.values())
-      .filter(d => String(d.researchId) === String(researchId))
-      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    return await Document.find({ researchId }).sort({ createdAt: -1 });
   }
 
   /**
-   * Retrieves all document chunks for a research project.
+   * Retrieves all document chunks for a research project from MongoDB.
    */
   static async getChunksByResearchId(researchId) {
-    const isConnected = mongoose.connection.readyState === 1;
-    if (isConnected) {
-      return await DocumentChunk.find({ researchId }).sort({ chunkNumber: 1 });
-    }
-    return Array.from(inMemoryChunks.values())
-      .filter(c => String(c.researchId) === String(researchId));
+    return await DocumentChunk.find({ researchId }).sort({ chunkNumber: 1 });
   }
 
   /**
-   * Deletes a document, its chunks, and associated evidence.
+   * Deletes a document, its chunks, and associated evidence from MongoDB.
    */
   static async deleteDocument(id) {
-    const isConnected = mongoose.connection.readyState === 1;
-
-    let doc;
-    if (isConnected) {
-      doc = await Document.findByIdAndDelete(id);
-      if (doc) {
-        await DocumentChunk.deleteMany({ documentId: id });
-        await Evidence.deleteMany({ documentId: id });
-      }
-    } else {
-      doc = inMemoryDocs.get(id);
-      if (doc) {
-        inMemoryDocs.delete(id);
-        for (const [cId, chunk] of inMemoryChunks.entries()) {
-          if (String(chunk.documentId) === String(id)) {
-            inMemoryChunks.delete(cId);
-          }
-        }
-      }
-    }
-
+    const doc = await Document.findByIdAndDelete(id);
     if (!doc) {
       throw new ApiError(404, `Document not found with ID: ${id}`);
     }
 
-    logInfo('DOCUMENT_SERVICE', `Document deleted: ID=${id}, Filename="${doc.filename}" [Timestamp: ${new Date().toISOString()}]`);
+    await DocumentChunk.deleteMany({ documentId: id });
+    await Evidence.deleteMany({ documentId: id });
+
+    logInfo('DOCUMENT_SERVICE', `[DB_WRITE] Document and associated chunks/evidence deleted from collections for DocID=${id}`);
 
     return doc;
   }

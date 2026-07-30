@@ -7,11 +7,9 @@ import { GeminiService } from './GeminiService.js';
 import { ApiError } from '../utils/apiResponse.js';
 import { logInfo, logError } from '../middleware/logger.js';
 
-const inMemoryMessages = new Map();
-
 export class ChatService {
   /**
-   * Processes a user question using RAG over stored evidence via Gemini 2.5 Flash.
+   * Processes a user question using RAG over stored evidence via Gemini 2.5 Flash, persisting messages in MongoDB.
    */
   static async sendMessage(researchId, userPrompt) {
     const startTime = Date.now();
@@ -24,33 +22,19 @@ export class ChatService {
       throw new ApiError(400, 'Message prompt cannot be empty.');
     }
 
-    const isConnected = mongoose.connection.readyState === 1;
     const research = await ResearchService.getResearchById(researchId);
     if (!research) {
       throw new ApiError(404, `Research workspace not found with ID: ${researchId}`);
     }
 
-    // Save user message
-    let userMsg;
-    if (isConnected) {
-      userMsg = await ChatMessage.create({
-        researchId,
-        role: 'user',
-        content: userPrompt.trim(),
-        citations: []
-      });
-    } else {
-      const uId = new mongoose.Types.ObjectId().toString();
-      userMsg = {
-        _id: uId,
-        researchId,
-        role: 'user',
-        content: userPrompt.trim(),
-        citations: [],
-        createdAt: new Date()
-      };
-      inMemoryMessages.set(uId, userMsg);
-    }
+    // Save user message in MongoDB
+    const userMsg = await ChatMessage.create({
+      researchId,
+      role: 'user',
+      content: userPrompt.trim(),
+      citations: []
+    });
+    logInfo('CHAT_SERVICE', `[DB_WRITE] Chat message stored in collection 'chatmessages': Role=user, ID=${userMsg._id}`);
 
     // Retrieve stored evidence
     const evidences = await EvidenceService.getEvidenceByResearchId(researchId);
@@ -103,29 +87,15 @@ export class ChatService {
 
     const latencyMs = Date.now() - startTime;
 
-    // Save assistant message
-    let assistantMsg;
-    if (isConnected) {
-      assistantMsg = await ChatMessage.create({
-        researchId,
-        role: 'assistant',
-        content: assistantContent,
-        citations: citationsPool,
-        latencyMs
-      });
-    } else {
-      const aId = new mongoose.Types.ObjectId().toString();
-      assistantMsg = {
-        _id: aId,
-        researchId,
-        role: 'assistant',
-        content: assistantContent,
-        citations: citationsPool,
-        latencyMs,
-        createdAt: new Date()
-      };
-      inMemoryMessages.set(aId, assistantMsg);
-    }
+    // Save assistant message in MongoDB
+    const assistantMsg = await ChatMessage.create({
+      researchId,
+      role: 'assistant',
+      content: assistantContent,
+      citations: citationsPool,
+      latencyMs
+    });
+    logInfo('CHAT_SERVICE', `[DB_WRITE] Chat message stored in collection 'chatmessages': Role=assistant, ID=${assistantMsg._id}, Citations=${citationsPool.length}`);
 
     logInfo('CHAT_SERVICE', `Response generated for ResearchID=${researchId} [Latency: ${latencyMs}ms, Citations: ${citationsPool.length}]`);
 
@@ -136,27 +106,12 @@ export class ChatService {
   }
 
   static async getHistory(researchId) {
-    const isConnected = mongoose.connection.readyState === 1;
-    if (isConnected) {
-      return await ChatMessage.find({ researchId }).sort({ createdAt: 1 });
-    }
-    return Array.from(inMemoryMessages.values())
-      .filter(m => String(m.researchId) === String(researchId))
-      .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+    return await ChatMessage.find({ researchId }).sort({ createdAt: 1 });
   }
 
   static async clearHistory(researchId) {
-    const isConnected = mongoose.connection.readyState === 1;
-    if (isConnected) {
-      await ChatMessage.deleteMany({ researchId });
-    } else {
-      for (const [id, msg] of inMemoryMessages.entries()) {
-        if (String(msg.researchId) === String(researchId)) {
-          inMemoryMessages.delete(id);
-        }
-      }
-    }
-    logInfo('CHAT_SERVICE', `Chat history cleared for ResearchID=${researchId}`);
+    await ChatMessage.deleteMany({ researchId });
+    logInfo('CHAT_SERVICE', `[DB_WRITE] Chat history deleted from collection 'chatmessages' for ResearchID=${researchId}`);
     return { success: true };
   }
 }

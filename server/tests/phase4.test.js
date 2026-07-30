@@ -5,10 +5,13 @@ import DocumentService from '../services/DocumentService.js';
 import EvidenceService from '../services/EvidenceService.js';
 import BriefService from '../services/BriefService.js';
 
+import { connectDB } from '../config/database.js';
+
 dotenv.config();
 
 async function runPhase4Tests() {
   console.log('--- Starting Phase 4 Integration Tests ---');
+  if (process.env.MONGODB_URI) await connectDB();
 
   try {
     // 1. Setup Full Workflow

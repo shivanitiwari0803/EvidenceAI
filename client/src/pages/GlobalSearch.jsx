@@ -5,10 +5,7 @@ import {
   BrainCircuit,
   FileText,
   Layers,
-  MessageSquare,
-  Sparkles,
-  ArrowRight,
-  Filter
+  ArrowRight
 } from 'lucide-react';
 import Card from '../components/common/Card';
 import Badge from '../components/common/Badge';
@@ -48,29 +45,29 @@ export const GlobalSearch = () => {
   }, [query, filterType]);
 
   return (
-    <div className="space-y-8 max-w-6xl mx-auto">
+    <div className="space-y-12 max-w-6xl mx-auto font-sans">
       {/* Header */}
       <div className="space-y-2">
-        <h1 className="text-2xl md:text-3xl font-extrabold text-white tracking-tight flex items-center gap-3">
-          <Search className="w-8 h-8 text-indigo-400" />
+        <h1 className="text-3xl font-bold text-[#1F150C] tracking-tight flex items-center gap-3">
+          <Search className="w-8 h-8 text-[#1F150C]" />
           Universal Global Search
         </h1>
-        <p className="text-base text-slate-300 leading-relaxed">
+        <p className="text-lg text-[#5E5648] leading-relaxed">
           Search across research projects, source documents, classified evidence, research briefs, and conversation history.
         </p>
       </div>
 
       {/* Search Bar & Filters */}
-      <Card className="p-6 space-y-4">
+      <Card className="p-8 space-y-6 bg-[#F8F6EF] border border-[#CBC3B2]">
         <form onSubmit={handleSearch} className="flex flex-col md:flex-row gap-4">
           <div className="relative flex-1">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-[#5E5648]" />
             <input
               type="text"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search across projects, documents, evidence excerpts, or chats..."
-              className="w-full pl-12 pr-4 py-3 bg-slate-950 border border-slate-800 rounded-xl text-base text-slate-100 placeholder:text-slate-500 focus:outline-none focus:border-indigo-500"
+              className="w-full h-[50px] pl-12 pr-4 bg-[#E1DCC9] border border-[#CBC3B2] rounded-xl text-base text-[#1F150C] placeholder:text-[#5E5648] focus:outline-none focus:border-[#1F150C]"
             />
           </div>
 
@@ -80,10 +77,10 @@ export const GlobalSearch = () => {
                 type="button"
                 key={t}
                 onClick={() => setFilterType(t)}
-                className={`px-4 py-2.5 rounded-xl text-sm font-bold uppercase tracking-wider transition-all min-h-[44px] ${
+                className={`px-4 py-2.5 rounded-xl text-sm font-semibold capitalize transition-colors h-[50px] ${
                   filterType === t
-                    ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20'
-                    : 'bg-slate-950 text-slate-300 hover:text-white border border-slate-800'
+                    ? 'bg-[#1F150C] text-[#FFFFFF]'
+                    : 'bg-[#E1DCC9] text-[#1F150C] hover:bg-[#D7D0BE] border border-[#CBC3B2]'
                 }`}
               >
                 {t}
@@ -95,31 +92,31 @@ export const GlobalSearch = () => {
 
       {/* Search Results Display */}
       {results && (
-        <div className="space-y-6">
+        <div className="space-y-8">
           <div className="flex items-center justify-between">
-            <span className="text-sm font-semibold text-slate-300">
+            <span className="text-base font-semibold text-[#5E5648]">
               Found {results.resultsCount} matches for "{query}"
             </span>
           </div>
 
           {/* Research Projects Results */}
           {results.projects?.length > 0 && (
-            <div className="space-y-3">
-              <h2 className="text-lg font-bold text-white flex items-center gap-2">
-                <BrainCircuit className="w-5 h-5 text-indigo-400" />
+            <div className="space-y-4">
+              <h2 className="text-xl font-bold text-[#1F150C] flex items-center gap-3">
+                <BrainCircuit className="w-6 h-6 text-[#1F150C]" />
                 Research Projects ({results.projects.length})
               </h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {results.projects.map((p) => (
-                  <Card key={p._id} className="p-5 space-y-2 border-slate-800">
+                  <Card key={p._id} className="p-6 space-y-3 bg-[#F8F6EF] border border-[#CBC3B2]">
                     <div className="flex items-center justify-between">
                       <Badge variant="emerald">{p.status}</Badge>
                       <Link to={`/details/${p._id}`}>
                         <Button variant="ghost" size="sm" icon={ArrowRight}>Open</Button>
                       </Link>
                     </div>
-                    <h3 className="font-bold text-white text-base">{p.title}</h3>
-                    <p className="text-xs text-slate-300 line-clamp-2">"{p.researchQuestion}"</p>
+                    <h3 className="font-bold text-[#1F150C] text-lg">{p.title}</h3>
+                    <p className="text-base text-[#5E5648] line-clamp-2">"{p.researchQuestion}"</p>
                   </Card>
                 ))}
               </div>
@@ -128,20 +125,20 @@ export const GlobalSearch = () => {
 
           {/* Documents Results */}
           {results.documents?.length > 0 && (
-            <div className="space-y-3">
-              <h2 className="text-lg font-bold text-white flex items-center gap-2">
-                <FileText className="w-5 h-5 text-indigo-400" />
+            <div className="space-y-4">
+              <h2 className="text-xl font-bold text-[#1F150C] flex items-center gap-3">
+                <FileText className="w-6 h-6 text-[#1F150C]" />
                 Documents ({results.documents.length})
               </h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {results.documents.map((d) => (
-                  <Card key={d._id} className="p-5 space-y-2 border-slate-800">
+                  <Card key={d._id} className="p-6 space-y-3 bg-[#F8F6EF] border border-[#CBC3B2]">
                     <div className="flex items-center justify-between">
                       <Badge variant="indigo">{d.mimeType || 'Document'}</Badge>
-                      <span className="text-xs text-slate-400 font-mono">{d.chunkCount} Chunks</span>
+                      <span className="text-sm text-[#5E5648] font-mono">{d.chunkCount} Chunks</span>
                     </div>
-                    <h3 className="font-bold text-white text-base">{d.filename}</h3>
-                    <p className="text-xs text-slate-300 line-clamp-2">{d.rawText}</p>
+                    <h3 className="font-bold text-[#1F150C] text-lg">{d.filename}</h3>
+                    <p className="text-base text-[#5E5648] line-clamp-2">{d.rawText}</p>
                   </Card>
                 ))}
               </div>
@@ -150,21 +147,21 @@ export const GlobalSearch = () => {
 
           {/* Evidence Results */}
           {results.evidence?.length > 0 && (
-            <div className="space-y-3">
-              <h2 className="text-lg font-bold text-white flex items-center gap-2">
-                <Layers className="w-5 h-5 text-indigo-400" />
+            <div className="space-y-4">
+              <h2 className="text-xl font-bold text-[#1F150C] flex items-center gap-3">
+                <Layers className="w-6 h-6 text-[#1F150C]" />
                 Evidence Items ({results.evidence.length})
               </h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {results.evidence.map((e) => (
-                  <Card key={e._id} className="p-5 space-y-2 border-slate-800">
+                  <Card key={e._id} className="p-6 space-y-3 bg-[#F8F6EF] border border-[#CBC3B2]">
                     <div className="flex items-center justify-between">
                       <Badge variant={e.classification === 'Supporting' ? 'emerald' : 'amber'}>
                         {e.classification}
                       </Badge>
-                      <span className="text-xs font-mono text-emerald-400 font-bold">{e.confidence}% Conf.</span>
+                      <span className="text-sm font-mono text-[#2E7D32] font-bold">{e.confidence}% Conf.</span>
                     </div>
-                    <p className="text-xs text-slate-200 italic bg-slate-950 p-3 rounded-lg border border-slate-800">
+                    <p className="text-base text-[#1F150C] italic bg-[#E1DCC9] p-4 rounded-xl border border-[#CBC3B2]">
                       "{e.excerpt}"
                     </p>
                   </Card>

@@ -5,13 +5,9 @@ import {
   Search,
   Calendar,
   ArrowRight,
-  BrainCircuit,
   Copy,
   Archive,
-  Trash2,
-  Filter,
-  Layers,
-  Sparkles
+  Trash2
 } from 'lucide-react';
 import Card from '../components/common/Card';
 import Badge from '../components/common/Badge';
@@ -48,26 +44,26 @@ export const History = () => {
   });
 
   return (
-    <div className="space-y-8 max-w-7xl mx-auto">
+    <div className="space-y-12 max-w-7xl mx-auto font-sans">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6">
         <div className="space-y-2">
-          <h1 className="text-2xl md:text-3xl font-extrabold text-white tracking-tight flex items-center gap-3">
-            <HistoryIcon className="w-8 h-8 text-indigo-400" />
+          <h1 className="text-3xl font-bold text-[#1F150C] tracking-tight flex items-center gap-3">
+            <HistoryIcon className="w-8 h-8 text-[#1F150C]" />
             Research Workspace Management
           </h1>
-          <p className="text-base text-slate-300 leading-relaxed">
-            Manage, duplicate, archive, and resume past research projects and AI-generated execution briefs.
+          <p className="text-lg text-[#5E5648] leading-relaxed">
+            Manage, duplicate, archive, and resume past research projects and execution briefs.
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
           <button
             onClick={() => setShowArchived(!showArchived)}
-            className={`px-4 py-2.5 rounded-xl text-sm font-bold border transition-all min-h-[44px] ${
+            className={`px-5 py-3 rounded-xl text-base font-semibold border transition-colors h-[50px] ${
               showArchived
-                ? 'bg-amber-600/20 text-amber-300 border-amber-500/40'
-                : 'bg-slate-900 text-slate-300 border-slate-800 hover:text-white'
+                ? 'bg-[#D97706]/10 text-[#D97706] border-[#D97706]/30'
+                : 'bg-[#F8F6EF] text-[#1F150C] border-[#CBC3B2] hover:bg-[#D7D0BE]'
             }`}
           >
             {showArchived ? 'Hide Archived' : 'Show Archived'}
@@ -76,16 +72,16 @@ export const History = () => {
       </div>
 
       {/* Search & Filter Bar */}
-      <Card className="p-6 space-y-4">
+      <Card className="p-6 space-y-4 bg-[#F8F6EF] border border-[#CBC3B2]">
         <div className="flex flex-col md:flex-row gap-4">
           <div className="relative flex-1">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-[#5E5648]" />
             <input
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search by project title or research question..."
-              className="w-full pl-12 pr-4 py-3 bg-slate-950 border border-slate-800 rounded-xl text-base text-slate-100 placeholder:text-slate-500 focus:outline-none focus:border-indigo-500"
+              className="w-full h-[50px] pl-12 pr-4 bg-[#E1DCC9] border border-[#CBC3B2] rounded-xl text-base text-[#1F150C] placeholder:text-[#5E5648] focus:outline-none focus:border-[#1F150C]"
             />
           </div>
 
@@ -94,10 +90,10 @@ export const History = () => {
               <button
                 key={st}
                 onClick={() => setStatusFilter(st)}
-                className={`px-4 py-2.5 rounded-xl text-sm font-bold transition-all min-h-[44px] ${
+                className={`px-4 py-2.5 rounded-xl text-sm font-semibold transition-colors h-[50px] ${
                   statusFilter === st
-                    ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20'
-                    : 'bg-slate-950 text-slate-300 hover:text-white border border-slate-800'
+                    ? 'bg-[#1F150C] text-[#FFFFFF] shadow-2xs'
+                    : 'bg-[#E1DCC9] text-[#1F150C] hover:bg-[#D7D0BE] border border-[#CBC3B2]'
                 }`}
               >
                 {st}
@@ -111,59 +107,59 @@ export const History = () => {
       {filteredHistory.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredHistory.map((project) => (
-            <Card key={project._id} className="space-y-4 p-6 hover:border-slate-700 transition-all flex flex-col justify-between border-slate-800">
+            <Card key={project._id} className="space-y-5 p-6 hover:border-[#1F150C] transition-all flex flex-col justify-between bg-[#F8F6EF] border border-[#CBC3B2]">
               <div className="space-y-3">
-                <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-2">
                     <Badge variant={project.status === 'PLAN_APPROVED' || project.status === 'COMPLETED' ? 'emerald' : 'amber'}>
                       {project.status}
                     </Badge>
                     {project.isArchived && <Badge variant="slate">Archived</Badge>}
                   </div>
-                  <span className="text-xs text-slate-300 font-mono flex items-center gap-1">
-                    <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                  <span className="text-sm text-[#5E5648] font-mono flex items-center gap-1.5">
+                    <Calendar className="w-4 h-4 text-[#5E5648]" />
                     {new Date(project.createdAt).toLocaleDateString()}
                   </span>
                 </div>
 
-                <h2 className="text-lg font-bold text-white line-clamp-1">
+                <h2 className="text-xl font-bold text-[#1F150C] line-clamp-1">
                   {project.title}
                 </h2>
 
-                <p className="text-sm text-slate-200 line-clamp-3 leading-relaxed bg-slate-950 p-3.5 rounded-xl border border-slate-800 font-sans">
+                <p className="text-base text-[#5E5648] line-clamp-3 leading-relaxed bg-[#E1DCC9] p-4 rounded-xl border border-[#CBC3B2]">
                   "{project.researchQuestion}"
                 </p>
               </div>
 
               {/* Card Actions */}
-              <div className="space-y-3 pt-3 border-t border-slate-800">
+              <div className="space-y-3 pt-3 border-t border-[#CBC3B2]">
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center gap-2">
                     <button
                       onClick={() => duplicateProject(project._id)}
-                      className="p-2.5 rounded-xl text-slate-300 hover:text-white hover:bg-slate-800 min-w-[40px] min-h-[40px] flex items-center justify-center"
+                      className="p-2 rounded-lg text-[#5E5648] hover:text-[#1F150C] hover:bg-[#E1DCC9]"
                       title="Duplicate Project"
                     >
-                      <Copy className="w-4 h-4" />
+                      <Copy className="w-5 h-5" />
                     </button>
                     <button
                       onClick={() => toggleArchiveProject(project._id, !project.isArchived)}
-                      className="p-2.5 rounded-xl text-slate-300 hover:text-amber-400 hover:bg-slate-800 min-w-[40px] min-h-[40px] flex items-center justify-center"
+                      className="p-2 rounded-lg text-[#5E5648] hover:text-[#D97706] hover:bg-[#E1DCC9]"
                       title={project.isArchived ? 'Unarchive Project' : 'Archive Project'}
                     >
-                      <Archive className="w-4 h-4" />
+                      <Archive className="w-5 h-5" />
                     </button>
                     <button
                       onClick={() => deleteProject(project._id)}
-                      className="p-2.5 rounded-xl text-rose-400 hover:text-rose-300 hover:bg-rose-950/40 min-w-[40px] min-h-[40px] flex items-center justify-center"
+                      className="p-2 rounded-lg text-[#B3261E] hover:bg-[#B3261E]/10"
                       title="Delete Project"
                     >
-                      <Trash2 className="w-4 h-4" />
+                      <Trash2 className="w-5 h-5" />
                     </button>
                   </div>
 
                   <Link to={`/details/${project._id}`}>
-                    <Button variant="primary" size="sm" icon={ArrowRight}>
+                    <Button variant="primary" size="md" icon={ArrowRight}>
                       Open Workspace
                     </Button>
                   </Link>
@@ -173,7 +169,7 @@ export const History = () => {
           ))}
         </div>
       ) : (
-        <Card className="text-center p-12 text-slate-300 text-sm">
+        <Card className="text-center p-12 text-[#5E5648] text-base bg-[#F8F6EF] border border-[#CBC3B2]">
           No research projects found matching your criteria.
         </Card>
       )}

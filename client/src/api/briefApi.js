@@ -27,6 +27,10 @@ export const briefApi = {
 
   exportMarkdown: async (briefId) => {
     return await api.post('/research-brief/export/markdown', { briefId });
+  },
+
+  updateBriefVersion: async (versionId, data) => {
+    return await api.put(`/research-brief/version/${versionId}`, data);
   }
 };
 

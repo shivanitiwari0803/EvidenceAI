@@ -4,7 +4,7 @@ import { logInfo, logError, logWarn } from '../middleware/logger.js';
 
 export class GeminiService {
   /**
-   * Helper to execute a Gemini 2.5 Flash request with a 60-second timeout and logging.
+   * Helper to execute a Gemini request with model fallback, 60-second timeout, and logging.
    */
   static async callGemini({ endpoint, prompt, temperature = 0.2 }) {
     const startTime = Date.now();
@@ -15,52 +15,63 @@ export class GeminiService {
       throw new ApiError(500, 'GEMINI_API_KEY environment variable is missing or not configured.');
     }
 
-    try {
-      const ai = new GoogleGenAI({ apiKey });
-      const model = 'gemini-2.5-flash';
+    const modelsToTry = ['gemini-2.0-flash', 'gemini-2.5-flash'];
+    let lastError = null;
 
-      // 60-second request timeout
-      const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Gemini API request timed out after 60 seconds.')), 60000)
-      );
+    for (const model of modelsToTry) {
+      try {
+        const ai = new GoogleGenAI({ apiKey });
 
-      const generatePromise = ai.models.generateContent({
-        model,
-        contents: prompt,
-        config: {
-          temperature
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Gemini API request timed out after 60 seconds.')), 60000)
+        );
+
+        const generatePromise = ai.models.generateContent({
+          model,
+          contents: prompt,
+          config: {
+            temperature
+          }
+        });
+
+        const response = await Promise.race([generatePromise, timeoutPromise]);
+        const latencyMs = Date.now() - startTime;
+
+        const text = response?.text || response?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+        if (!text) {
+          logError('GEMINI_SERVICE', `[${endpoint}] Model=${model}, Latency=${latencyMs}ms, Status=FAILED, Error="Empty response received from Gemini API."`);
+          throw new ApiError(502, 'Received empty response from Gemini Flash model.');
         }
-      });
 
-      const response = await Promise.race([generatePromise, timeoutPromise]);
-      const latencyMs = Date.now() - startTime;
+        logInfo('GEMINI_SERVICE', `[${endpoint}] Model=${model}, Latency=${latencyMs}ms, Status=SUCCESS`);
+        return text;
+      } catch (err) {
+        lastError = err;
+        const latencyMs = Date.now() - startTime;
 
-      const text = response?.text || response?.candidates?.[0]?.content?.parts?.[0]?.text || '';
-      if (!text) {
-        logError('GEMINI_SERVICE', `[${endpoint}] Model=gemini-2.5-flash, Latency=${latencyMs}ms, Status=FAILED, Error="Empty response received from Gemini API."`);
-        throw new ApiError(502, 'Received empty response from Gemini 2.5 Flash model.');
+        if (err.status === 429 || err.message?.includes('RESOURCE_EXHAUSTED') || err.message?.includes('quota')) {
+          logWarn('GEMINI_SERVICE', `[${endpoint}] Model=${model}, Latency=${latencyMs}ms, Status=QUOTA_EXCEEDED, Error="${err.message}"`);
+          throw new ApiError(429, 'Gemini API quota exceeded or rate limited. Utilizing fallback engine.');
+        }
+
+        logWarn('GEMINI_SERVICE', `[${endpoint}] Model=${model} failed: ${err.message}. Trying next candidate if available...`);
       }
-
-      logInfo('GEMINI_SERVICE', `[${endpoint}] Model=gemini-2.5-flash, Latency=${latencyMs}ms, Status=SUCCESS`);
-      return text;
-    } catch (err) {
-      const latencyMs = Date.now() - startTime;
-      logError('GEMINI_SERVICE', `[${endpoint}] Model=gemini-2.5-flash, Latency=${latencyMs}ms, Status=FAILED, Error="${err.message}"`);
-
-      if (err.status === 401 || err.message?.includes('API key')) {
-        throw new ApiError(401, 'Invalid Gemini API key provided. Please check GEMINI_API_KEY in .env');
-      } else if (err.status === 429 || err.message?.includes('RESOURCE_EXHAUSTED')) {
-        throw new ApiError(429, 'Gemini 2.5 Flash rate limit exceeded. Please try again shortly.');
-      } else if (err.message?.includes('timed out')) {
-        throw new ApiError(504, 'Gemini API request timed out after 60 seconds.');
-      }
-
-      throw err instanceof ApiError ? err : new ApiError(500, `Gemini Service Error: ${err.message}`);
     }
+
+    const latencyMs = Date.now() - startTime;
+    logError('GEMINI_SERVICE', `[${endpoint}] All model candidates failed. Latency=${latencyMs}ms, Error="${lastError?.message}"`);
+
+    if (lastError?.status === 401 || lastError?.message?.includes('API key')) {
+      throw new ApiError(401, 'Invalid Gemini API key provided. Please check GEMINI_API_KEY in .env');
+    } else if (lastError?.message?.includes('timed out')) {
+      throw new ApiError(504, 'Gemini API request timed out after 60 seconds.');
+    }
+
+    throw lastError instanceof ApiError ? lastError : new ApiError(500, `Gemini Service Error: ${lastError?.message}`);
   }
 
   /**
-   * Generates a structured research plan (3-7 steps) using Gemini 2.5 Flash.
+   * Generates a structured research plan (3-7 steps) using Gemini Flash.
    */
   static async generatePlan({ researchQuestion, context }) {
     const prompt = `You are a Senior Technical Research Architect.
@@ -102,11 +113,11 @@ Respond STRICTLY in VALID JSON ONLY matching this format:
       logWarn('GEMINI_SERVICE', `JSON parse retry for Research Plan: ${parseErr.message}`);
     }
 
-    throw new ApiError(502, 'Gemini 2.5 Flash returned invalid JSON structure for research plan.');
+    throw new ApiError(502, 'Gemini Flash returned invalid JSON structure for research plan.');
   }
 
   /**
-   * Classifies a document chunk as Supporting, Conflicting, or Insufficient using Gemini 2.5 Flash.
+   * Classifies a document chunk as Supporting, Conflicting, Mixed / Neutral, or Insufficient using Gemini Flash.
    */
   static async classifyEvidence({ step, chunkText, docName }) {
     const prompt = `You are a Research Evidence Classifier.
@@ -117,7 +128,7 @@ Task:
 Determine if this document chunk contains evidence for the step objective.
 If relevant:
 1. Extract the exact relevant excerpt string (max 250 chars).
-2. Classify as "Supporting", "Conflicting", or "Insufficient".
+2. Classify as "Supporting", "Conflicting", "Mixed / Neutral", or "Insufficient".
 3. Provide confidence score (0 to 100).
 4. Provide a brief reason for this classification.
 
@@ -135,7 +146,7 @@ Respond STRICTLY in VALID JSON ONLY:
       const cleaned = rawText.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/, '').trim();
       const parsed = JSON.parse(cleaned);
 
-      if (parsed && parsed.isRelevant && ['Supporting', 'Conflicting', 'Insufficient'].includes(parsed.classification)) {
+      if (parsed && parsed.isRelevant && ['Supporting', 'Conflicting', 'Mixed / Neutral', 'Insufficient'].includes(parsed.classification)) {
         return {
           isRelevant: true,
           excerpt: parsed.excerpt || chunkText.slice(0, 200) + '...',
@@ -151,7 +162,7 @@ Respond STRICTLY in VALID JSON ONLY:
   }
 
   /**
-   * Synthesizes an 11-section Research Brief using Gemini 2.5 Flash.
+   * Synthesizes a 12-section Research Brief using Gemini Flash.
    */
   static async generateBriefSections({ researchQuestion, context, evidences, documents, plan }) {
     const evidenceSummary = evidences.map((ev, i) =>
@@ -166,19 +177,20 @@ Retrieved Empirical Evidence:
 ${evidenceSummary}
 
 Task:
-Synthesize an 11-section Evidence-Based Research Brief.
-You MUST write 11 distinct section objects matching these exact headings:
+Synthesize a 12-section Evidence-Based Research Brief.
+You MUST write 12 distinct section objects matching these exact headings:
 1. Executive Summary
 2. Research Question
-3. Research Context
+3. Research Objective
 4. Methodology
 5. Key Findings
 6. Supporting Evidence
 7. Conflicting Evidence
-8. Areas with Insufficient Evidence
-9. Unanswered Questions
-10. Limitations
-11. Overall Conclusion
+8. Mixed Evidence
+9. Limitations
+10. Recommendations
+11. Conclusion
+12. References / Citations
 
 Respond STRICTLY in VALID JSON ONLY:
 {
@@ -186,15 +198,16 @@ Respond STRICTLY in VALID JSON ONLY:
   "sections": [
     { "heading": "1. Executive Summary", "content": "..." },
     { "heading": "2. Research Question", "content": "..." },
-    { "heading": "3. Research Context", "content": "..." },
+    { "heading": "3. Research Objective", "content": "..." },
     { "heading": "4. Methodology", "content": "..." },
     { "heading": "5. Key Findings", "content": "..." },
     { "heading": "6. Supporting Evidence", "content": "..." },
     { "heading": "7. Conflicting Evidence", "content": "..." },
-    { "heading": "8. Areas with Insufficient Evidence", "content": "..." },
-    { "heading": "9. Unanswered Questions", "content": "..." },
-    { "heading": "10. Limitations", "content": "..." },
-    { "heading": "11. Overall Conclusion", "content": "..." }
+    { "heading": "8. Mixed Evidence", "content": "..." },
+    { "heading": "9. Limitations", "content": "..." },
+    { "heading": "10. Recommendations", "content": "..." },
+    { "heading": "11. Conclusion", "content": "..." },
+    { "heading": "12. References / Citations", "content": "..." }
   ],
   "followUpQuestions": [
     "Suggested question 1...",
@@ -217,11 +230,11 @@ Respond STRICTLY in VALID JSON ONLY:
       logWarn('GEMINI_SERVICE', `Research brief parse error: ${err.message}`);
     }
 
-    throw new ApiError(502, 'Gemini 2.5 Flash returned invalid JSON structure for research brief.');
+    throw new ApiError(502, 'Gemini Flash returned invalid JSON structure for research brief.');
   }
 
   /**
-   * Answers a user RAG chat prompt using Gemini 2.5 Flash.
+   * Answers a user RAG chat prompt using Gemini Flash.
    */
   static async generateRAGChatResponse({ userPrompt, evidences, documents, researchQuestion }) {
     const getDocName = (docId) => {

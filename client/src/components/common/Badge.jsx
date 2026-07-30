@@ -2,16 +2,21 @@ import React from 'react';
 
 export const Badge = ({ children, variant = 'indigo', className = '' }) => {
   const variants = {
-    indigo: 'bg-indigo-500/20 text-indigo-300 border-indigo-500/30',
-    emerald: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30',
-    amber: 'bg-amber-500/20 text-amber-300 border-amber-500/30',
-    rose: 'bg-rose-500/20 text-rose-300 border-rose-500/30',
-    slate: 'bg-slate-800 text-slate-200 border-slate-700'
+    indigo: 'bg-[#1F150C]/10 text-[#1F150C] border-[#1F150C]/20',
+    blue: 'bg-[#1F150C]/10 text-[#1F150C] border-[#1F150C]/20',
+    emerald: 'bg-[#2E7D32]/10 text-[#2E7D32] border-[#2E7D32]/30',
+    success: 'bg-[#2E7D32]/10 text-[#2E7D32] border-[#2E7D32]/30',
+    amber: 'bg-[#D97706]/10 text-[#D97706] border-[#D97706]/30',
+    warning: 'bg-[#D97706]/10 text-[#D97706] border-[#D97706]/30',
+    rose: 'bg-[#B3261E]/10 text-[#B3261E] border-[#B3261E]/30',
+    danger: 'bg-[#B3261E]/10 text-[#B3261E] border-[#B3261E]/30',
+    slate: 'bg-[#5E5648]/10 text-[#5E5648] border-[#5E5648]/30',
+    gray: 'bg-[#5E5648]/10 text-[#5E5648] border-[#5E5648]/30'
   };
 
   return (
     <span
-      className={`inline-flex items-center px-3 py-1 rounded-lg text-xs font-bold border tracking-wide uppercase ${
+      className={`inline-flex items-center px-3 py-1 rounded-md text-xs sm:text-sm font-semibold border ${
         variants[variant] || variants.indigo
       } ${className}`}
     >

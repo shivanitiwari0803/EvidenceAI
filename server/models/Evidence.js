@@ -26,7 +26,7 @@ const evidenceSchema = new mongoose.Schema(
     },
     classification: {
       type: String,
-      enum: ['Supporting', 'Conflicting', 'Insufficient'],
+      enum: ['Supporting', 'Conflicting', 'Insufficient', 'Mixed / Neutral', 'Mixed'],
       required: true
     },
     confidence: {

@@ -67,20 +67,23 @@ app.use(notFoundHandler);
 app.use(errorHandler);
 
 // Database Connection & Server Bootstrap
-if (process.env.MONGODB_URI) {
-  connectDB();
-} else {
-  logInfo('SERVER', 'MONGODB_URI not set. Running in standalone placeholder mode.');
-}
+const bootstrapServer = async () => {
+  if (process.env.MONGODB_URI) {
+    await connectDB();
+  } else {
+    logInfo('SERVER', 'MONGODB_URI not set.');
+  }
 
-const server = app.listen(PORT, () => {
-  logInfo('SERVER', `EvidenceAI Server running on port ${PORT} [${process.env.NODE_ENV || 'development'}]`);
-});
+  const server = app.listen(PORT, () => {
+    logInfo('SERVER', `EvidenceAI Server running on port ${PORT} [${process.env.NODE_ENV || 'development'}]`);
+  });
 
-// Graceful Shutdown
-process.on('unhandledRejection', (err) => {
-  logInfo('SERVER', `Unhandled Rejection: ${err.message}`);
-  server.close(() => process.exit(1));
-});
+  process.on('unhandledRejection', (err) => {
+    logInfo('SERVER', `Unhandled Rejection: ${err.message}`);
+    server.close(() => process.exit(1));
+  });
+};
+
+bootstrapServer();
 
 export default app;

@@ -1,108 +1,233 @@
-import React from 'react';
-import { NavLink } from 'react-router-dom';
+import React, { useState } from 'react';
+import { NavLink, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard,
   PlusCircle,
-  History as HistoryIcon,
   Layers,
-  Sparkles,
-  ShieldCheck,
-  ChevronRight,
   FileText,
   BrainCircuit,
   MessageSquare,
   Search,
-  Settings
+  Settings,
+  FolderKanban,
+  Database,
+  CheckCircle2,
+  Lock
 } from 'lucide-react';
-
-const navItems = [
-  { name: 'Dashboard', path: '/', icon: LayoutDashboard },
-  { name: 'New Research', path: '/new', icon: PlusCircle, badge: 'Phase 2' },
-  { name: 'Documents', path: '/documents', icon: FileText, badge: 'Phase 3' },
-  { name: 'Evidence Viewer', path: '/evidence', icon: Layers, badge: 'Phase 3' },
-  { name: 'Research Brief', path: '/brief', icon: BrainCircuit, badge: 'Phase 4' },
-  { name: 'AI RAG Chat', path: '/chat', icon: MessageSquare, badge: 'Final' },
-  { name: 'Global Search', path: '/search', icon: Search },
-  { name: 'Settings', path: '/settings', icon: Settings },
-  { name: 'Research History', path: '/history', icon: HistoryIcon },
-];
+import { useResearch } from '../../context/ResearchContext';
+import { evaluateWorkflowSteps } from '../../utils/workflowValidation';
+import WorkflowPrerequisiteModal from '../common/WorkflowPrerequisiteModal';
 
 export const Sidebar = ({ isOpen, setIsOpen }) => {
+  const navigate = useNavigate();
+  const { currentResearch, currentPlan, documents, evidences, currentBrief } = useResearch();
+
+  const [modalConfig, setModalConfig] = useState({
+    isOpen: false,
+    targetStep: '',
+    missingPrerequisites: [],
+    redirectPath: '',
+    redirectLabel: ''
+  });
+
+  const primaryNav = [
+    { name: 'Dashboard', path: '/', icon: LayoutDashboard },
+    { name: 'New Research', path: '/new', icon: PlusCircle },
+    { name: 'Research Projects', path: '/history', icon: FolderKanban },
+    { name: 'Global Search', path: '/search', icon: Search }
+  ];
+
+  const systemNav = [
+    { name: 'System Settings', path: '/settings', icon: Settings }
+  ];
+
+  const { steps } = evaluateWorkflowSteps(currentResearch, currentPlan, documents, evidences, currentBrief);
+
+  const handlePipelineClick = (e, step) => {
+    if (step.locked) {
+      e.preventDefault();
+      setModalConfig({
+        isOpen: true,
+        targetStep: step.title,
+        missingPrerequisites: step.checklist,
+        redirectPath: step.redirectPath,
+        redirectLabel: step.redirectLabel
+      });
+    } else {
+      if (setIsOpen) setIsOpen(false);
+    }
+  };
+
+  const getStepIcon = (key) => {
+    switch (key) {
+      case 'details': return BrainCircuit;
+      case 'documents': return FileText;
+      case 'evidence': return Layers;
+      case 'brief': return BrainCircuit;
+      case 'chat': return MessageSquare;
+      default: return BrainCircuit;
+    }
+  };
+
   return (
-    <aside
-      className={`fixed top-0 left-0 z-40 h-screen w-72 bg-slate-900/95 border-r border-slate-800 backdrop-blur-md transition-transform duration-300 md:translate-x-0 ${
-        isOpen ? 'translate-x-0' : '-translate-x-full'
-      }`}
-    >
-      <div className="flex flex-col h-full">
-        {/* Brand Header */}
-        <div className="flex items-center gap-3.5 px-6 py-6 border-b border-slate-800/80">
-          <div className="h-11 w-11 rounded-xl bg-gradient-to-br from-indigo-500 via-purple-500 to-indigo-700 flex items-center justify-center shadow-lg shadow-indigo-500/25 ring-1 ring-white/20 shrink-0">
-            <Sparkles className="w-6 h-6 text-white" />
-          </div>
-          <div>
-            <div className="flex items-center gap-1.5">
-              <span className="font-extrabold text-lg tracking-tight text-white">Evidence</span>
-              <span className="text-xs font-bold px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">AI</span>
+    <>
+      <aside
+        className={`fixed top-0 left-0 z-40 h-screen w-72 bg-[#1F150C] text-[#FFFFFF] border-r border-[#332517] transition-transform duration-200 md:translate-x-0 ${
+          isOpen ? 'translate-x-0' : '-translate-x-full'
+        }`}
+      >
+        <div className="flex flex-col h-full">
+          {/* Brand Header */}
+          <div className="flex items-center justify-between px-6 py-6 border-b border-[#332517]">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-xl bg-[#EDE8D8] text-[#1F150C] flex items-center justify-center font-bold text-lg shadow-2xs">
+                E
+              </div>
+              <div>
+                <span className="font-bold text-base text-[#FFFFFF] tracking-tight block">EvidenceAI</span>
+                <span className="text-xs text-[#CBC3B2] font-mono uppercase tracking-wider">Enterprise Workspace</span>
+              </div>
             </div>
-            <p className="text-xs font-medium text-slate-300">Research Assistant Workspace</p>
           </div>
-        </div>
 
-        {/* System Status Banner */}
-        <div className="mx-4 my-4 p-3.5 rounded-xl bg-slate-950/80 border border-slate-800 flex items-center gap-2.5 text-xs font-semibold">
-          <span className="relative flex h-2.5 w-2.5 shrink-0">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
-          </span>
-          <span className="text-slate-200">Full System Active & Ready</span>
-        </div>
-
-        {/* Navigation Links */}
-        <nav className="flex-1 px-4 space-y-1.5 overflow-y-auto py-2">
-          {navItems.map((item) => {
-            const Icon = item.icon;
-            return (
-              <NavLink
-                key={item.path}
-                to={item.path}
-                onClick={() => setIsOpen && setIsOpen(false)}
-                className={({ isActive }) =>
-                  `flex items-center justify-between px-4 py-3 rounded-xl text-base font-semibold transition-all duration-200 min-h-[46px] group ${
-                    isActive
-                      ? 'bg-indigo-600/20 text-indigo-200 border border-indigo-500/40 shadow-sm shadow-indigo-500/10'
-                      : 'text-slate-300 hover:text-white hover:bg-slate-800/60 border border-transparent'
-                  }`
-                }
+          {/* Current Active Workspace Selector */}
+          {currentResearch && (
+            <div className="mx-4 my-4 p-4 rounded-xl bg-[#2A1E13] border border-[#3D2D1D] space-y-1.5">
+              <div className="flex items-center justify-between text-xs font-bold uppercase tracking-wider text-[#CBC3B2]">
+                <span>Active Workspace</span>
+                <span className="h-2 w-2 rounded-full bg-[#2E7D32]"></span>
+              </div>
+              <p
+                onClick={() => navigate(`/details/${currentResearch._id}`)}
+                className="text-sm font-semibold text-[#FFFFFF] truncate cursor-pointer hover:text-[#EDE8D8] transition-colors"
               >
-                <div className="flex items-center gap-3.5">
-                  <Icon className="w-5 h-5 shrink-0 transition-transform group-hover:scale-110" />
-                  <span>{item.name}</span>
-                </div>
-                {item.badge ? (
-                  <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-slate-800 text-slate-200 border border-slate-700">
-                    {item.badge}
-                  </span>
-                ) : (
-                  <ChevronRight className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity text-slate-400" />
-                )}
-              </NavLink>
-            );
-          })}
-        </nav>
+                {currentResearch.title}
+              </p>
+            </div>
+          )}
 
-        {/* Workspace Footer */}
-        <div className="p-5 border-t border-slate-800/80 bg-slate-950/60">
-          <div className="flex items-center justify-between text-xs text-slate-300 font-medium">
-            <span className="flex items-center gap-2">
-              <ShieldCheck className="w-4 h-4 text-emerald-400" />
-              Production Suite
-            </span>
-            <span className="font-mono text-xs text-slate-400">v5.0.0</span>
+          {/* Navigation Sections */}
+          <nav className="flex-1 px-4 space-y-6 overflow-y-auto py-4">
+            {/* Main App Section */}
+            <div className="space-y-1.5">
+              <span className="px-3 text-xs font-bold uppercase tracking-wider text-[#CBC3B2] block mb-2">
+                Platform
+              </span>
+              {primaryNav.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <NavLink
+                    key={item.path}
+                    to={item.path}
+                    end={item.path === '/'}
+                    onClick={() => setIsOpen && setIsOpen(false)}
+                    className={({ isActive }) =>
+                      `flex items-center justify-between px-4 py-3 rounded-xl text-base font-semibold transition-colors ${
+                        isActive
+                          ? 'bg-[#EDE8D8] text-[#1F150C] font-bold shadow-2xs'
+                          : 'text-[#E5E7EB] hover:text-[#FFFFFF] hover:bg-[#2A1E13]'
+                      }`
+                    }
+                  >
+                    <div className="flex items-center gap-3">
+                      <Icon className="w-5 h-5 shrink-0 text-[#FFFFFF]" />
+                      <span>{item.name}</span>
+                    </div>
+                  </NavLink>
+                );
+              })}
+            </div>
+
+            {/* Workflow Stage Section with Step Validation Badges */}
+            <div className="space-y-1.5">
+              <span className="px-3 text-xs font-bold uppercase tracking-wider text-[#CBC3B2] block mb-2">
+                Research Pipeline
+              </span>
+              {steps.map((step) => {
+                const Icon = getStepIcon(step.key);
+                return (
+                  <NavLink
+                    key={step.key}
+                    to={step.path}
+                    onClick={(e) => handlePipelineClick(e, step)}
+                    className={({ isActive }) =>
+                      `flex items-center justify-between px-4 py-3 rounded-xl text-base font-semibold transition-colors ${
+                        isActive
+                          ? 'bg-[#EDE8D8] text-[#1F150C] font-bold shadow-2xs'
+                          : step.locked
+                          ? 'text-[#CBC3B2]/60 hover:bg-[#2A1E13] cursor-pointer'
+                          : 'text-[#E5E7EB] hover:text-[#FFFFFF] hover:bg-[#2A1E13]'
+                      }`
+                    }
+                  >
+                    <div className="flex items-center gap-3">
+                      <Icon className="w-5 h-5 shrink-0 text-[#FFFFFF]" />
+                      <span>{step.shortLabel}</span>
+                    </div>
+
+                    {step.locked ? (
+                      <Lock className="w-4 h-4 text-[#D97706] shrink-0" />
+                    ) : step.completed ? (
+                      <CheckCircle2 className="w-4 h-4 text-[#2E7D32] shrink-0" />
+                    ) : null}
+                  </NavLink>
+                );
+              })}
+            </div>
+
+            {/* System Section */}
+            <div className="space-y-1.5">
+              <span className="px-3 text-xs font-bold uppercase tracking-wider text-[#CBC3B2] block mb-2">
+                System
+              </span>
+              {systemNav.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <NavLink
+                    key={item.path}
+                    to={item.path}
+                    onClick={() => setIsOpen && setIsOpen(false)}
+                    className={({ isActive }) =>
+                      `flex items-center justify-between px-4 py-3 rounded-xl text-base font-semibold transition-colors ${
+                        isActive
+                          ? 'bg-[#EDE8D8] text-[#1F150C] font-bold shadow-2xs'
+                          : 'text-[#E5E7EB] hover:text-[#FFFFFF] hover:bg-[#2A1E13]'
+                      }`
+                    }
+                  >
+                    <div className="flex items-center gap-3">
+                      <Icon className="w-5 h-5 shrink-0 text-[#FFFFFF]" />
+                      <span>{item.name}</span>
+                    </div>
+                  </NavLink>
+                );
+              })}
+            </div>
+          </nav>
+
+          {/* Sidebar Footer */}
+          <div className="p-5 border-t border-[#332517] bg-[#160E08]">
+            <div className="flex items-center justify-between text-sm text-[#E5E7EB] font-medium">
+              <span className="flex items-center gap-2">
+                <Database className="w-4 h-4 text-[#2E7D32]" />
+                Atlas Cluster
+              </span>
+              <span className="font-mono text-xs text-[#CBC3B2]">MongoDB</span>
+            </div>
           </div>
         </div>
-      </div>
-    </aside>
+      </aside>
+
+      {/* Prerequisite Modal for Locked Sidebar Links */}
+      <WorkflowPrerequisiteModal
+        isOpen={modalConfig.isOpen}
+        onClose={() => setModalConfig(prev => ({ ...prev, isOpen: false }))}
+        targetStep={modalConfig.targetStep}
+        missingPrerequisites={modalConfig.missingPrerequisites}
+        redirectPath={modalConfig.redirectPath}
+        redirectLabel={modalConfig.redirectLabel}
+      />
+    </>
   );
 };
 

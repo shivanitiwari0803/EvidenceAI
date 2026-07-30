@@ -1,7 +1,8 @@
 import mongoose from 'mongoose';
 import { UserSettings } from '../models/UserSettings.js';
+import { logInfo } from '../middleware/logger.js';
 
-let inMemorySettings = {
+const defaultSettings = {
   userId: 'default_user',
   defaultModel: 'gpt-4o-mini',
   theme: 'dark',
@@ -13,29 +14,22 @@ let inMemorySettings = {
 
 export class SettingsService {
   static async getSettings() {
-    const isConnected = mongoose.connection.readyState === 1;
-    if (isConnected) {
-      let settings = await UserSettings.findOne({ userId: 'default_user' });
-      if (!settings) {
-        settings = await UserSettings.create(inMemorySettings);
-      }
-      return settings;
+    let settings = await UserSettings.findOne({ userId: 'default_user' });
+    if (!settings) {
+      settings = await UserSettings.create(defaultSettings);
+      logInfo('SETTINGS_SERVICE', `[DB_WRITE] Default settings created in collection 'usersettings'`);
     }
-    return inMemorySettings;
+    return settings;
   }
 
   static async updateSettings(data) {
-    const isConnected = mongoose.connection.readyState === 1;
-    if (isConnected) {
-      let settings = await UserSettings.findOneAndUpdate(
-        { userId: 'default_user' },
-        { $set: data },
-        { new: true, upsert: true }
-      );
-      return settings;
-    }
-    inMemorySettings = { ...inMemorySettings, ...data };
-    return inMemorySettings;
+    const settings = await UserSettings.findOneAndUpdate(
+      { userId: 'default_user' },
+      { $set: data },
+      { new: true, upsert: true }
+    );
+    logInfo('SETTINGS_SERVICE', `[DB_WRITE] Settings updated in collection 'usersettings'`);
+    return settings;
   }
 }
 

@@ -10,9 +10,13 @@ export const connectDB = async () => {
       process.exit(1);
     }
 
-    const conn = await mongoose.connect(mongoURI);
+    const dbName = process.env.DB_NAME || 'EvidenceAI';
+    const conn = await mongoose.connect(mongoURI, {
+      dbName
+    });
 
-    logInfo('DB', `MongoDB Connected: ${conn.connection.host}`);
+    logInfo('DB', `[DB_CONNECTED] Host: ${conn.connection.host} | DB Name: ${conn.connection.name} | readyState: ${conn.connection.readyState}`);
+    return conn;
   } catch (error) {
     logError('DB', `MongoDB Connection Error: ${error.message}`);
     process.exit(1);

@@ -1,31 +1,35 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import {
   MessageSquare,
   Send,
   Trash2,
-  Sparkles,
   FileText,
-  Clock,
   ArrowLeft,
   Loader2,
   Copy,
   Check,
   Bot,
   User,
-  HelpCircle,
-  PlusCircle
+  PlusCircle,
+  ArrowDown,
+  Lock,
+  CheckCircle2,
+  XCircle,
+  ArrowRight
 } from 'lucide-react';
 import Card from '../components/common/Card';
-import Badge from '../components/common/Badge';
 import Button from '../components/common/Button';
+import Badge from '../components/common/Badge';
 import { useResearch } from '../context/ResearchContext';
 import { useToast } from '../context/ToastContext';
 
 export const Chat = () => {
   const { researchId: paramResearchId } = useParams();
+  const navigate = useNavigate();
   const {
     currentResearch,
+    currentBrief,
     chatMessages,
     history,
     fetchHistory,
@@ -41,7 +45,10 @@ export const Chat = () => {
 
   const [inputMessage, setInputMessage] = useState('');
   const [copiedIdx, setCopiedIdx] = useState(null);
+  const [isUserAtBottom, setIsUserAtBottom] = useState(true);
+  const chatContainerRef = useRef(null);
   const messagesEndRef = useRef(null);
+  const userJustSentRef = useRef(false);
 
   useEffect(() => {
     fetchHistory();
@@ -56,8 +63,23 @@ export const Chat = () => {
   }, [activeResId, history, currentResearch, loadResearch]);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (userJustSentRef.current || isUserAtBottom) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      userJustSentRef.current = false;
+    }
   }, [chatMessages, chatLoading]);
+
+  const handleScroll = () => {
+    if (!chatContainerRef.current) return;
+    const { scrollTop, scrollHeight, clientHeight } = chatContainerRef.current;
+    const isBottom = scrollHeight - scrollTop - clientHeight < 80;
+    setIsUserAtBottom(isBottom);
+  };
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    setIsUserAtBottom(true);
+  };
 
   const handleSend = async (e) => {
     e?.preventDefault();
@@ -65,6 +87,7 @@ export const Chat = () => {
 
     const msg = inputMessage;
     setInputMessage('');
+    userJustSentRef.current = true;
     try {
       await sendChatMessage(currentResearch._id, msg);
     } catch (err) {
@@ -92,24 +115,24 @@ export const Chat = () => {
 
   if (loading && !currentResearch) {
     return (
-      <div className="space-y-4 max-w-4xl mx-auto py-12 text-center">
-        <div className="h-12 w-12 mx-auto rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-center text-indigo-400 animate-spin">
+      <div className="space-y-6 max-w-4xl mx-auto py-16 text-center">
+        <div className="h-12 w-12 mx-auto rounded-xl bg-[#1F150C]/10 border border-[#1F150C]/20 flex items-center justify-center text-[#1F150C] animate-spin">
           <MessageSquare className="w-6 h-6" />
         </div>
-        <p className="text-sm text-slate-300">Loading evidence-based chat workspace...</p>
+        <p className="text-base text-[#5E5648] font-medium">Loading chat workspace...</p>
       </div>
     );
   }
 
   if (!currentResearch && (!history || history.length === 0)) {
     return (
-      <Card className="p-12 text-center space-y-6 max-w-2xl mx-auto my-12 bg-slate-900/80">
-        <div className="h-16 w-16 mx-auto rounded-2xl bg-indigo-950/80 border border-indigo-800 flex items-center justify-center text-indigo-400">
+      <Card className="p-12 text-center space-y-6 max-w-3xl mx-auto my-12 bg-[#FAF8F2] border border-[#CBC3B2]">
+        <div className="h-16 w-16 mx-auto rounded-2xl bg-[#1F150C]/10 border border-[#1F150C]/20 flex items-center justify-center text-[#1F150C]">
           <MessageSquare className="w-8 h-8" />
         </div>
         <div className="space-y-2">
-          <h2 className="text-xl font-bold text-white">No Active Research Project Found</h2>
-          <p className="text-base text-slate-300">
+          <h2 className="text-2xl font-bold text-[#1F150C]">No Active Research Project</h2>
+          <p className="text-base text-[#5E5648]">
             Create a research project to interact with the Evidence-Grounded AI Chat Assistant.
           </p>
         </div>
@@ -122,75 +145,111 @@ export const Chat = () => {
     );
   }
 
-  if (!currentResearch) {
+  /* STEP VALIDATION SAFEGUARD */
+  if (currentResearch && !currentBrief) {
     return (
-      <div className="space-y-4 max-w-4xl mx-auto py-12 text-center">
-        <div className="h-12 w-12 mx-auto rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-center text-indigo-400 animate-spin">
-          <MessageSquare className="w-6 h-6" />
-        </div>
-        <p className="text-sm text-slate-300">Selecting active research workspace...</p>
+      <div className="space-y-8 max-w-4xl mx-auto font-sans">
+        <Card className="p-10 text-center space-y-6 bg-[#FAF8F2] border border-[#CBC3B2] shadow-2xs">
+          <div className="h-16 w-16 mx-auto rounded-2xl bg-[#D97706]/10 border border-[#D97706]/30 flex items-center justify-center text-[#D97706]">
+            <Lock className="w-8 h-8" />
+          </div>
+          <div className="space-y-2">
+            <Badge variant="amber">Step Locked: Brief Synthesis Required</Badge>
+            <h2 className="text-3xl font-bold text-[#1F150C] tracking-tight">Complete Previous Step</h2>
+            <p className="text-base text-[#5E5648] max-w-lg mx-auto leading-relaxed">
+              Generate and review the Research Brief before starting evidence-grounded conversations for "{currentResearch.title}".
+            </p>
+          </div>
+
+          <div className="bg-[#EDE8D8] p-5 rounded-xl border border-[#CBC3B2] max-w-md mx-auto space-y-3 text-left">
+            <span className="text-xs font-bold uppercase tracking-wider text-[#5E5648] block">Prerequisite Checklist:</span>
+            <div className="space-y-2 text-sm font-semibold">
+              <div className="flex items-center gap-2 text-[#1F150C]">
+                <CheckCircle2 className="w-5 h-5 text-[#2E7D32]" />
+                <span>1. Retrieve & Audit Evidence Claims</span>
+              </div>
+              <div className="flex items-center gap-2 text-[#B3261E]">
+                <XCircle className="w-5 h-5 text-[#B3261E]" />
+                <span>2. Synthesize 12-Section Research Brief (Missing)</span>
+              </div>
+            </div>
+          </div>
+
+          <Button
+            variant="primary"
+            size="lg"
+            onClick={() => navigate(`/brief/${currentResearch._id}`)}
+            icon={ArrowRight}
+          >
+            Go to Research Brief Synthesis
+          </Button>
+        </Card>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6 max-w-5xl mx-auto flex flex-col h-[calc(100vh-140px)]">
+    <div className="space-y-8 max-w-6xl mx-auto flex flex-col h-[calc(100vh-140px)] font-sans">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 shrink-0">
         <div className="space-y-1">
           <Link
             to={`/details/${currentResearch._id}`}
-            className="text-xs font-semibold text-slate-300 hover:text-white flex items-center gap-1.5 mb-1"
+            className="text-sm font-semibold text-[#5E5648] hover:text-[#1F150C] flex items-center gap-1.5"
           >
             <ArrowLeft className="w-4 h-4" /> Back to Research Workspace
           </Link>
-          <h1 className="text-2xl font-extrabold text-white tracking-tight flex items-center gap-3">
-            <MessageSquare className="w-7 h-7 text-indigo-400" />
+          <h1 className="text-2xl font-bold text-[#1F150C] tracking-tight flex items-center gap-3">
+            <MessageSquare className="w-6 h-6 text-[#1F150C]" />
             Evidence-Grounded AI Assistant
           </h1>
-          <p className="text-xs text-slate-300">
+          <p className="text-base text-[#5E5648]">
             Answers are generated strictly from stored empirical evidence for "{currentResearch.title}".
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
           <Button
-            variant="ghost"
-            size="sm"
+            variant="danger"
+            size="md"
             onClick={() => clearChatHistory(currentResearch._id)}
             icon={Trash2}
-            className="text-rose-400 hover:text-rose-300 border border-rose-900/40"
           >
             Clear History
           </Button>
         </div>
       </div>
 
-      {/* Main Chat Messages Container */}
-      <Card className="flex-1 overflow-y-auto p-6 space-y-6 bg-slate-900/90 border-slate-800 flex flex-col justify-between">
-        <div className="space-y-6">
+      {/* Main Chat Container */}
+      <div className="relative flex-1 flex flex-col min-h-0 bg-[#FAF8F2] border border-[#CBC3B2] rounded-2xl overflow-hidden shadow-2xs">
+        {/* Scrollable Messages Area */}
+        <div
+          ref={chatContainerRef}
+          onScroll={handleScroll}
+          className="flex-1 overflow-y-auto p-8 space-y-8"
+        >
           {/* Welcome Message */}
-          <div className="flex items-start gap-4 bg-indigo-950/40 border border-indigo-800/60 p-5 rounded-2xl">
-            <div className="h-10 w-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center shrink-0">
-              <Bot className="w-6 h-6" />
+          <div className="flex items-start gap-4 bg-[#EDE8D8] border border-[#CBC3B2] p-6 rounded-2xl">
+            <div className="h-10 w-10 rounded-xl bg-[#1F150C] text-[#FFFFFF] flex items-center justify-center shrink-0 font-bold">
+              <Bot className="w-5 h-5" />
             </div>
-            <div className="space-y-2 text-sm text-slate-200">
-              <h3 className="font-bold text-white text-base">Evidence-Grounded RAG Assistant Ready</h3>
-              <p className="leading-relaxed">
-                I can answer follow-up questions regarding <strong>"{currentResearch.title}"</strong> strictly using extracted document evidence. I will never hallucinate or invent unverified claims.
+            <div className="space-y-1.5 text-base text-[#1F150C]">
+              <h3 className="font-bold text-[#1F150C] text-lg">Grounded RAG Assistant Ready</h3>
+              <p className="leading-relaxed text-[#5E5648]">
+                I can answer follow-up questions regarding <strong>"{currentResearch.title}"</strong> strictly using extracted document evidence.
               </p>
             </div>
           </div>
 
           {/* Quick Prompts Bar */}
           <div className="space-y-2">
-            <span className="text-xs font-bold text-slate-300 uppercase tracking-wider block">Suggested Questions:</span>
+            <span className="text-xs font-bold text-[#5E5648] uppercase tracking-wider block">Suggested Questions:</span>
             <div className="flex flex-wrap gap-2">
               {quickPrompts.map((qp, idx) => (
                 <button
                   key={idx}
                   onClick={() => handleQuickQuestion(qp)}
-                  className="px-3.5 py-2 rounded-xl bg-slate-950 hover:bg-slate-800 border border-slate-800 text-xs font-semibold text-indigo-300 transition-colors text-left"
+                  className="px-4 py-2.5 rounded-xl bg-[#EDE8D8] hover:bg-[#D7D0BE] border border-[#CBC3B2] text-sm font-medium text-[#1F150C] transition-colors text-left"
                 >
                   💬 {qp}
                 </button>
@@ -207,60 +266,58 @@ export const Chat = () => {
               }`}
             >
               <div
-                className={`h-10 w-10 rounded-xl flex items-center justify-center shrink-0 ${
-                  msg.role === 'user'
-                    ? 'bg-purple-600 text-white'
-                    : 'bg-indigo-600 text-white'
+                className={`h-10 w-10 rounded-xl flex items-center justify-center shrink-0 text-[#FFFFFF] font-bold text-sm ${
+                  msg.role === 'user' ? 'bg-[#5E5648]' : 'bg-[#1F150C]'
                 }`}
               >
                 {msg.role === 'user' ? <User className="w-5 h-5" /> : <Bot className="w-5 h-5" />}
               </div>
 
               <div
-                className={`max-w-2xl space-y-3 p-5 rounded-2xl text-sm leading-relaxed border ${
+                className={`max-w-3xl space-y-3 p-6 rounded-2xl text-base leading-relaxed border ${
                   msg.role === 'user'
-                    ? 'bg-purple-950/60 border-purple-800/80 text-white'
-                    : 'bg-slate-950 border-slate-800 text-slate-100'
+                    ? 'bg-[#EDE8D8] border-[#CBC3B2] text-[#1F150C]'
+                    : 'bg-[#FAF8F2] border-[#CBC3B2] text-[#1F150C]'
                 }`}
               >
-                <div className="flex items-center justify-between gap-4 border-b border-slate-800/60 pb-2">
-                  <span className="font-bold text-xs text-slate-300 uppercase tracking-wider">
+                <div className="flex items-center justify-between gap-4 border-b border-[#CBC3B2] pb-2">
+                  <span className="font-bold text-xs uppercase tracking-wider text-[#5E5648]">
                     {msg.role === 'user' ? 'You' : 'EvidenceAI Assistant'}
                   </span>
                   <div className="flex items-center gap-2">
                     {msg.latencyMs > 0 && (
-                      <span className="text-[11px] font-mono text-slate-400">{msg.latencyMs}ms</span>
+                      <span className="text-xs font-mono text-[#5E5648]">{msg.latencyMs}ms</span>
                     )}
                     <button
                       onClick={() => handleCopyText(msg.content, idx)}
-                      className="text-slate-400 hover:text-white p-1"
+                      className="text-[#5E5648] hover:text-[#1F150C] p-1"
                       title="Copy text"
                     >
-                      {copiedIdx === idx ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                      {copiedIdx === idx ? <Check className="w-4 h-4 text-[#2E7D32]" /> : <Copy className="w-4 h-4" />}
                     </button>
                   </div>
                 </div>
 
-                <p className="whitespace-pre-line font-sans">{msg.content}</p>
+                <p className="whitespace-pre-line font-sans text-base leading-relaxed text-[#1F150C]">{msg.content}</p>
 
-                {/* Inline Citation Chips */}
+                {/* Inline Citation Pills */}
                 {msg.citations && msg.citations.length > 0 && (
-                  <div className="pt-3 border-t border-slate-800/80 space-y-2">
-                    <span className="text-[11px] font-bold text-indigo-400 uppercase tracking-wider block">
-                      Evidence Citations:
+                  <div className="pt-3 border-t border-[#CBC3B2] space-y-2">
+                    <span className="text-xs font-bold text-[#5E5648] uppercase tracking-wider block">
+                      Traceable Citations:
                     </span>
                     <div className="space-y-2">
                       {msg.citations.map((c, cIdx) => (
                         <div
                           key={cIdx}
-                          className="p-3 rounded-xl bg-slate-900 border border-slate-800 text-xs text-slate-300 space-y-1 font-mono"
+                          className="p-3 rounded-xl bg-[#EDE8D8] border border-[#CBC3B2] text-sm text-[#1F150C] space-y-1 font-mono"
                         >
-                          <div className="flex items-center gap-2 text-indigo-300 font-bold">
-                            <FileText className="w-3.5 h-3.5 text-indigo-400" />
+                          <div className="flex items-center gap-2 text-[#1F150C] font-semibold">
+                            <FileText className="w-4 h-4 shrink-0 text-[#5E5648]" />
                             <span>{c.docName}</span>
-                            <span className="text-slate-400">• Chunk {c.chunkNumber}</span>
+                            <span className="text-[#5E5648]">• Chunk {c.chunkNumber}</span>
                           </div>
-                          <p className="text-[11px] text-slate-300 italic">"{c.excerpt}"</p>
+                          <p className="text-xs text-[#5E5648] italic">"{c.excerpt}"</p>
                         </div>
                       ))}
                     </div>
@@ -270,15 +327,15 @@ export const Chat = () => {
             </div>
           ))}
 
-          {/* Typing Skeleton */}
+          {/* Typing Indicator */}
           {chatLoading && (
             <div className="flex items-start gap-4">
-              <div className="h-10 w-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center animate-pulse">
+              <div className="h-10 w-10 rounded-xl bg-[#1F150C] text-[#FFFFFF] flex items-center justify-center animate-pulse">
                 <Bot className="w-5 h-5" />
               </div>
-              <div className="bg-slate-950 border border-slate-800 p-5 rounded-2xl space-y-2 animate-pulse min-w-[250px]">
-                <div className="h-4 bg-slate-800 rounded w-3/4"></div>
-                <div className="h-3 bg-slate-800/60 rounded w-1/2"></div>
+              <div className="bg-[#EDE8D8] border border-[#CBC3B2] p-5 rounded-2xl space-y-2 animate-pulse min-w-[240px]">
+                <div className="h-4 bg-[#CBC3B2] rounded w-3/4"></div>
+                <div className="h-3 bg-[#CBC3B2]/60 rounded w-1/2"></div>
               </div>
             </div>
           )}
@@ -286,19 +343,31 @@ export const Chat = () => {
           <div ref={messagesEndRef} />
         </div>
 
-        {/* Input Form */}
-        <form onSubmit={handleSend} className="pt-4 border-t border-slate-800 flex items-center gap-3">
+        {/* Floating Scroll-to-Bottom Button */}
+        {!isUserAtBottom && (
+          <button
+            onClick={scrollToBottom}
+            className="absolute bottom-20 right-8 p-3 px-4 rounded-full bg-[#1F150C] hover:bg-[#382819] text-[#FFFFFF] shadow-lg transition-all flex items-center gap-2 text-sm font-semibold"
+            title="Scroll to bottom"
+          >
+            <ArrowDown className="w-4 h-4" />
+            <span>Scroll</span>
+          </button>
+        )}
+
+        {/* Input Form Footer */}
+        <form onSubmit={handleSend} className="p-4 bg-[#EDE8D8] border-t border-[#CBC3B2] flex items-center gap-3 shrink-0">
           <input
             type="text"
             value={inputMessage}
             onChange={(e) => setInputMessage(e.target.value)}
             placeholder="Ask a question grounded strictly in uploaded evidence..."
-            className="flex-1 px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl text-base text-slate-100 placeholder:text-slate-500 focus:outline-none focus:border-indigo-500"
+            className="flex-1 h-[50px] px-4 py-3 bg-[#FAF8F2] border border-[#CBC3B2] rounded-xl text-base text-[#1F150C] placeholder:text-[#5E5648] focus:outline-none focus:border-[#1F150C]"
           />
           <Button
             type="submit"
             variant="primary"
-            size="lg"
+            size="md"
             disabled={!inputMessage.trim() || chatLoading}
             icon={chatLoading ? Loader2 : Send}
             className={chatLoading ? 'animate-spin' : ''}
@@ -306,7 +375,7 @@ export const Chat = () => {
             Send
           </Button>
         </form>
-      </Card>
+      </div>
     </div>
   );
 };

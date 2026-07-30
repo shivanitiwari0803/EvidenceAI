@@ -59,3 +59,10 @@ export const exportMarkdown = asyncHandler(async (req, res) => {
   const md = BriefService.exportMarkdown(brief);
   sendSuccess(res, 200, { markdown: md, filename: `${brief.title || 'brief'}.md` }, 'Markdown exported successfully');
 });
+
+export const updateBrief = asyncHandler(async (req, res) => {
+  const { versionId } = req.params;
+  const { sections, reviewStatus, summary } = req.body;
+  const updated = await BriefService.updateBriefVersion(versionId, { sections, reviewStatus, summary });
+  sendSuccess(res, 200, updated, 'Research Brief version updated and reviewed successfully');
+});

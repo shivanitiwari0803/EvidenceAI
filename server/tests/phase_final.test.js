@@ -7,10 +7,13 @@ import ChatService from '../services/ChatService.js';
 import SearchService from '../services/SearchService.js';
 import SettingsService from '../services/SettingsService.js';
 
+import { connectDB } from '../config/database.js';
+
 dotenv.config();
 
 async function runFinalPhaseTests() {
   console.log('--- Starting Final Phase Integration Tests ---');
+  if (process.env.MONGODB_URI) await connectDB();
 
   try {
     // 1. Setup Workspace with evidence

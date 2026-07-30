@@ -8,24 +8,29 @@ export const Button = ({
   onClick,
   type = 'button',
   icon: Icon,
-  className = '',
-  ...props
+  className = ''
 }) => {
-  const baseStyles = 'inline-flex items-center justify-center font-semibold rounded-xl transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer border select-none min-h-[44px]';
-
-  const variants = {
-    primary: 'bg-indigo-600 hover:bg-indigo-500 text-white border-indigo-500/50 shadow-md shadow-indigo-600/25 focus:ring-indigo-500 focus:ring-offset-slate-950 active:scale-[0.99]',
-    secondary: 'bg-slate-800 hover:bg-slate-700 text-slate-100 border-slate-700/80 focus:ring-slate-600 focus:ring-offset-slate-950 active:scale-[0.99]',
-    outline: 'bg-slate-900/60 hover:bg-slate-800/80 text-slate-200 border-slate-700 hover:border-slate-600 focus:ring-slate-600 focus:ring-offset-slate-950 active:scale-[0.99]',
-    ghost: 'bg-transparent hover:bg-slate-800/60 text-slate-300 hover:text-white border-transparent focus:ring-slate-700 active:scale-[0.99]',
-    danger: 'bg-rose-600 hover:bg-rose-500 text-white border-rose-500/50 shadow-md shadow-rose-600/20 focus:ring-rose-500 focus:ring-offset-slate-950 active:scale-[0.99]',
-    success: 'bg-emerald-600 hover:bg-emerald-500 text-white border-emerald-500/50 shadow-md shadow-emerald-600/20 focus:ring-emerald-500 focus:ring-offset-slate-950 active:scale-[0.99]'
-  };
+  const baseStyles = 'inline-flex items-center justify-center font-semibold rounded-xl transition-all focus:outline-none focus:ring-2 focus:ring-[#1F150C]/30 disabled:opacity-50 disabled:cursor-not-allowed shrink-0 h-[50px] text-base';
 
   const sizes = {
-    sm: 'text-sm px-4 py-2.5 gap-2 min-h-[44px]',
-    md: 'text-base px-5 py-3 gap-2.5 min-h-[48px]',
-    lg: 'text-lg px-6 py-3.5 gap-3 min-h-[52px]'
+    sm: 'px-4 py-2.5 text-sm gap-2 h-11',
+    md: 'px-6 py-3 text-base gap-2.5 h-[50px]',
+    lg: 'px-7 py-3.5 text-base gap-3 h-14'
+  };
+
+  const variants = {
+    primary: 'bg-[#1F150C] hover:bg-[#382819] text-[#FFFFFF] shadow-2xs font-semibold border border-[#1F150C]',
+    secondary: 'bg-[#FAF8F2] hover:bg-[#D7D0BE] text-[#1F150C] border border-[#1F150C] shadow-2xs font-semibold',
+    outline: 'bg-transparent hover:bg-[#D7D0BE] text-[#1F150C] border border-[#1F150C] font-semibold',
+    ghost: 'text-[#1F150C] hover:bg-[#D7D0BE] font-semibold',
+    danger: 'bg-[#B3261E] hover:bg-[#8E1E17] text-[#FFFFFF] font-semibold shadow-2xs',
+    success: 'bg-[#2E7D32] hover:bg-[#236027] text-[#FFFFFF] font-semibold shadow-2xs'
+  };
+
+  const iconSizes = {
+    sm: 'w-4 h-4',
+    md: 'w-5 h-5',
+    lg: 'w-5 h-5'
   };
 
   return (
@@ -33,11 +38,10 @@ export const Button = ({
       type={type}
       disabled={disabled}
       onClick={onClick}
-      className={`${baseStyles} ${variants[variant] || variants.primary} ${sizes[size] || sizes.md} ${className}`}
-      {...props}
+      className={`${baseStyles} ${sizes[size]} ${variants[variant]} ${className}`}
     >
-      {Icon && <Icon className="w-5 h-5 shrink-0" />}
-      <span>{children}</span>
+      {Icon && <Icon className={iconSizes[size]} />}
+      {children}
     </button>
   );
 };

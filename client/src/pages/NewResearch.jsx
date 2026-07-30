@@ -3,336 +3,244 @@ import { useNavigate } from 'react-router-dom';
 import {
   BrainCircuit,
   Sparkles,
+  Loader2,
+  CheckCircle2,
+  ListOrdered,
   Plus,
   Trash2,
-  ArrowUp,
-  ArrowDown,
-  CheckCircle2,
-  AlertCircle,
-  HelpCircle,
   FileText,
-  Loader2,
-  Edit3
+  HelpCircle,
+  Sliders
 } from 'lucide-react';
-import Card, { CardHeader, CardTitle } from '../components/common/Card';
-import Badge from '../components/common/Badge';
+import Card from '../components/common/Card';
 import Button from '../components/common/Button';
 import { useResearch } from '../context/ResearchContext';
 import { useToast } from '../context/ToastContext';
 
 export const NewResearch = () => {
   const navigate = useNavigate();
-  const {
-    currentResearch,
-    currentPlan,
-    createResearchProject,
-    generateAIPlan,
-    updatePlanSteps,
-    approveCurrentPlan,
-    generatingPlan,
-    loading
-  } = useResearch();
-
+  const { createResearchProject, currentPlan, approveResearchPlan, loading } = useResearch();
   const { showToast } = useToast();
 
   const [step, setStep] = useState(1);
   const [title, setTitle] = useState('');
   const [researchQuestion, setResearchQuestion] = useState('');
-  const [context, setContext] = useState('');
-  const [questionError, setQuestionError] = useState('');
-
+  const [contextInput, setContextInput] = useState('');
   const [editableSteps, setEditableSteps] = useState([]);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [createdResearchId, setCreatedResearchId] = useState(null);
 
-  const handleQuestionChange = (e) => {
-    const val = e.target.value;
-    setResearchQuestion(val);
-    if (!val.trim()) {
-      setQuestionError('Research question is required.');
-    } else if (val.trim().length < 10) {
-      setQuestionError(`Question must be at least 10 characters. (${val.trim().length}/10)`);
-    } else {
-      setQuestionError('');
-    }
-  };
-
-  const isQuestionValid = researchQuestion.trim().length >= 10;
-
-  const handleCreateProject = async (e) => {
+  const handleFormulateSubmit = async (e) => {
     e.preventDefault();
-    if (!isQuestionValid || isSubmitting) return;
-
-    setIsSubmitting(true);
-    try {
-      const researchData = await createResearchProject({
-        title: title || 'Untitled AI Research Project',
-        researchQuestion,
-        context
-      });
-
-      const planData = await generateAIPlan(researchData._id);
-      if (planData && planData.steps) {
-        setEditableSteps(planData.steps);
-      }
-      setStep(2);
-    } catch (err) {
-      // Toast error handled in context
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const handleStepChange = (index, field, value) => {
-    const updated = [...editableSteps];
-    updated[index][field] = value;
-    setEditableSteps(updated);
-  };
-
-  const handleMoveStep = (index, direction) => {
-    const targetIdx = index + direction;
-    if (targetIdx < 0 || targetIdx >= editableSteps.length) return;
-
-    const updated = [...editableSteps];
-    const temp = updated[index];
-    updated[index] = updated[targetIdx];
-    updated[targetIdx] = temp;
-
-    updated.forEach((s, i) => { s.order = i + 1; });
-    setEditableSteps(updated);
-  };
-
-  const handleDeleteStep = (index) => {
-    if (editableSteps.length <= 1) {
-      showToast('Plan must contain at least 1 step', 'error');
+    if (!title.trim() || !researchQuestion.trim()) {
+      showToast('Please enter title and research question', 'error');
       return;
     }
-    const updated = editableSteps.filter((_, i) => i !== index);
-    updated.forEach((s, i) => { s.order = i + 1; });
+
+    try {
+      const resData = await createResearchProject(title, researchQuestion, contextInput);
+      setCreatedResearchId(resData.research._id);
+      setEditableSteps(resData.plan.steps || []);
+      setStep(2);
+    } catch (err) {
+      // toast shown in context
+    }
+  };
+
+  const handleStepTitleChange = (idx, newTitle) => {
+    const updated = [...editableSteps];
+    updated[idx].title = newTitle;
+    setEditableSteps(updated);
+  };
+
+  const handleStepObjectiveChange = (idx, newObj) => {
+    const updated = [...editableSteps];
+    updated[idx].objective = newObj;
     setEditableSteps(updated);
   };
 
   const handleAddStep = () => {
-    const newStepObj = {
-      id: String(Date.now()),
-      title: `Step ${editableSteps.length + 1}: Custom Research Action`,
-      description: 'Define the empirical analysis objective for this step.',
-      objective: 'Verify system bounds and performance metrics.',
-      order: editableSteps.length + 1
-    };
-    setEditableSteps([...editableSteps, newStepObj]);
+    const nextOrder = editableSteps.length + 1;
+    setEditableSteps([
+      ...editableSteps,
+      { order: nextOrder, title: `Step ${nextOrder}: New Objective`, objective: 'Define evaluation scope' }
+    ]);
+  };
+
+  const handleRemoveStep = (idx) => {
+    const updated = editableSteps.filter((_, i) => i !== idx).map((s, i) => ({ ...s, order: i + 1 }));
+    setEditableSteps(updated);
   };
 
   const handleApprovePlan = async () => {
     if (!currentPlan?._id) return;
     try {
-      await updatePlanSteps(currentPlan._id, editableSteps);
-      await approveCurrentPlan(currentPlan._id);
-      navigate(`/details/${currentResearch._id}`);
+      await approveResearchPlan(currentPlan._id, editableSteps);
+      navigate(`/documents/${createdResearchId}`);
     } catch (err) {
-      // Handled in context
+      // toast error handled in context
     }
   };
 
   return (
-    <div className="space-y-8 max-w-4xl mx-auto">
+    <div className="space-y-12 max-w-5xl mx-auto font-sans">
       {/* Header */}
       <div className="space-y-2">
-        <div className="flex items-center gap-2">
-          <Badge variant="indigo">Step {step} of 2</Badge>
-          <span className="text-xs font-mono text-slate-300">Phase 2 Workspace</span>
-        </div>
-        <h1 className="text-2xl md:text-3xl font-extrabold text-white tracking-tight flex items-center gap-3">
-          <BrainCircuit className="w-8 h-8 text-indigo-400" />
-          {step === 1 ? 'Formulate AI Research Project' : 'Review & Approve AI Research Plan'}
+        <h1 className="text-3xl font-bold text-[#1F150C] tracking-tight flex items-center gap-3">
+          <BrainCircuit className="w-8 h-8 text-[#1F150C]" />
+          Formulate Research Project
         </h1>
-        <p className="text-base text-slate-300 leading-relaxed">
-          {step === 1
-            ? 'Define your target research question and background context to generate an AI-powered multi-step plan.'
-            : 'Inspect, edit, reorder, or add steps to your generated AI plan before approval and document ingestion.'}
+        <p className="text-lg text-[#5E5648] leading-relaxed">
+          Define your core research goal. The AI engine will formulate a step-by-step execution plan for empirical document verification.
         </p>
       </div>
 
-      {/* STEP 1 FORM: Project Details */}
+      {/* Step Stepper Indicator */}
+      <div className="flex items-center gap-4 border-b border-[#CBC3B2] pb-6">
+        <div className={`flex items-center gap-3 text-base font-bold ${step === 1 ? 'text-[#1F150C]' : 'text-[#5E5648]'}`}>
+          <span className={`h-8 w-8 rounded-full flex items-center justify-center text-sm ${step === 1 ? 'bg-[#1F150C] text-[#FFFFFF]' : 'bg-[#CBC3B2] text-[#1F150C]'}`}>1</span>
+          Formulate Question
+        </div>
+        <span className="text-[#CBC3B2]">—</span>
+        <div className={`flex items-center gap-3 text-base font-bold ${step === 2 ? 'text-[#1F150C]' : 'text-[#5E5648]'}`}>
+          <span className={`h-8 w-8 rounded-full flex items-center justify-center text-sm ${step === 2 ? 'bg-[#1F150C] text-[#FFFFFF]' : 'bg-[#CBC3B2] text-[#1F150C]'}`}>2</span>
+          Approve AI Execution Plan
+        </div>
+      </div>
+
+      {/* STEP 1: SECTIONED FORMULATION CARDS */}
       {step === 1 && (
-        <Card className="p-8 space-y-6">
-          <form onSubmit={handleCreateProject} className="space-y-6">
+        <form onSubmit={handleFormulateSubmit} className="space-y-8">
+          {/* Section 1: Project Identity */}
+          <Card className="p-8 space-y-4 bg-[#FAF8F2] border border-[#CBC3B2]">
+            <div className="flex items-center gap-3 border-b border-[#CBC3B2] pb-3">
+              <FileText className="w-5 h-5 text-[#1F150C]" />
+              <h2 className="text-xl font-bold text-[#1F150C]">1. Project Identity & Metadata</h2>
+            </div>
             <div className="space-y-2">
-              <label className="text-base font-bold text-slate-100 block">
-                Project Title <span className="text-slate-400 font-normal">(Optional)</span>
-              </label>
+              <label className="text-base font-semibold text-[#1F150C]">Project Title</label>
               <input
                 type="text"
+                required
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                placeholder="e.g. Multi-Agent Vulnerability Evaluation & Context Isolation"
-                className="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl text-base text-slate-100 placeholder:text-slate-500 focus:outline-none focus:border-indigo-500"
+                placeholder="e.g., Enterprise RAG Latency & Accuracy Audit"
+                className="w-full h-[50px] px-4 py-3 bg-[#EDE8D8] border border-[#CBC3B2] rounded-xl text-base text-[#1F150C] placeholder:text-[#5E5648] focus:outline-none focus:border-[#1F150C]"
               />
             </div>
+          </Card>
 
+          {/* Section 2: Research Scope & Core Question */}
+          <Card className="p-8 space-y-4 bg-[#FAF8F2] border border-[#CBC3B2]">
+            <div className="flex items-center gap-3 border-b border-[#CBC3B2] pb-3">
+              <HelpCircle className="w-5 h-5 text-[#1F150C]" />
+              <h2 className="text-xl font-bold text-[#1F150C]">2. Core Research Scope & Hypothesis</h2>
+            </div>
             <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <label className="text-base font-bold text-slate-100 block">
-                  Research Question <span className="text-rose-400">*</span>
-                </label>
-                <span className="text-xs text-slate-400 font-mono">Minimum 10 characters</span>
-              </div>
+              <label className="text-base font-semibold text-[#1F150C]">Primary Research Question</label>
               <textarea
                 rows={4}
                 required
                 value={researchQuestion}
-                onChange={handleQuestionChange}
-                placeholder="Formulate your core research question (e.g. How does context window contamination affect subagent decision trees?)..."
-                className={`w-full px-4 py-3 bg-slate-950 border rounded-xl text-base text-slate-100 placeholder:text-slate-500 focus:outline-none leading-relaxed ${
-                  questionError ? 'border-rose-500/60' : 'border-slate-800 focus:border-indigo-500'
-                }`}
+                onChange={(e) => setResearchQuestion(e.target.value)}
+                placeholder="What primary hypothesis or technical objective will be evaluated against source documents?"
+                className="w-full min-h-[140px] p-4 bg-[#EDE8D8] border border-[#CBC3B2] rounded-xl text-base text-[#1F150C] placeholder:text-[#5E5648] focus:outline-none focus:border-[#1F150C] leading-relaxed"
               />
-              {questionError && (
-                <p className="text-sm text-rose-400 flex items-center gap-1.5 font-medium">
-                  <AlertCircle className="w-4 h-4" />
-                  {questionError}
-                </p>
-              )}
             </div>
+          </Card>
 
+          {/* Section 3: Context & Scope Constraints */}
+          <Card className="p-8 space-y-4 bg-[#FAF8F2] border border-[#CBC3B2]">
+            <div className="flex items-center gap-3 border-b border-[#CBC3B2] pb-3">
+              <Sliders className="w-5 h-5 text-[#1F150C]" />
+              <h2 className="text-xl font-bold text-[#1F150C]">3. Additional Context & Constraints (Optional)</h2>
+            </div>
             <div className="space-y-2">
-              <label className="text-base font-bold text-slate-100 block">
-                Research Context <span className="text-slate-400 font-normal">(Optional)</span>
-              </label>
+              <label className="text-base font-semibold text-[#1F150C]">Research Context & Technical Scope</label>
               <textarea
                 rows={3}
-                value={context}
-                onChange={(e) => setContext(e.target.value)}
-                placeholder="Provide architectural background, specific benchmarks, or target boundaries..."
-                className="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl text-base text-slate-100 placeholder:text-slate-500 focus:outline-none focus:border-indigo-500 leading-relaxed"
+                value={contextInput}
+                onChange={(e) => setContextInput(e.target.value)}
+                placeholder="Include architectural constraints, evaluation parameters, or domain context..."
+                className="w-full min-h-[120px] p-4 bg-[#EDE8D8] border border-[#CBC3B2] rounded-xl text-base text-[#1F150C] placeholder:text-[#5E5648] focus:outline-none focus:border-[#1F150C] leading-relaxed"
               />
             </div>
 
-            <div className="pt-4 border-t border-slate-800 flex justify-end">
+            <div className="flex justify-end pt-4 border-t border-[#CBC3B2]">
               <Button
                 type="submit"
                 variant="primary"
                 size="lg"
-                disabled={!isQuestionValid || isSubmitting || generatingPlan}
-                icon={isSubmitting || generatingPlan ? Loader2 : Sparkles}
-                className={isSubmitting || generatingPlan ? 'animate-pulse' : ''}
+                disabled={loading}
+                icon={loading ? Loader2 : Sparkles}
+                className={loading ? 'animate-spin' : ''}
               >
-                {isSubmitting || generatingPlan ? 'Generating AI Research Plan...' : 'Generate AI Plan'}
+                {loading ? 'Generating AI Execution Plan...' : 'Generate Execution Plan'}
               </Button>
-            </div>
-          </form>
-        </Card>
-      )}
-
-      {/* STEP 2: Plan Review & Interactive Editing */}
-      {step === 2 && (
-        <div className="space-y-6">
-          <Card className="p-6 space-y-4 bg-slate-900/90 border-indigo-500/30">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <div className="space-y-1">
-                <Badge variant="emerald">Plan Generated</Badge>
-                <h2 className="text-xl font-bold text-white">{currentResearch?.title}</h2>
-                <p className="text-sm text-slate-300 font-medium">"{currentResearch?.researchQuestion}"</p>
-              </div>
-
-              <div className="flex items-center gap-3">
-                <Button variant="secondary" size="md" onClick={() => setStep(1)}>
-                  Edit Question
-                </Button>
-                <Button variant="success" size="md" onClick={handleApprovePlan} icon={CheckCircle2}>
-                  Approve Plan & Proceed
-                </Button>
-              </div>
             </div>
           </Card>
+        </form>
+      )}
 
-          {/* Steps List */}
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                <BrainCircuit className="w-5 h-5 text-indigo-400" />
-                Plan Execution Steps ({editableSteps.length})
-              </h3>
-              <Button variant="outline" size="sm" onClick={handleAddStep} icon={Plus}>
-                Add Custom Step
+      {/* STEP 2: INTERACTIVE PLAN APPROVAL */}
+      {step === 2 && (
+        <div className="space-y-8">
+          <Card className="p-8 space-y-6 bg-[#FAF8F2] border border-[#CBC3B2]">
+            <div className="flex items-center justify-between border-b border-[#CBC3B2] pb-4">
+              <div className="space-y-1">
+                <h2 className="text-xl font-bold text-[#1F150C] flex items-center gap-2">
+                  <ListOrdered className="w-5 h-5 text-[#1F150C]" />
+                  Review & Customize AI Research Plan
+                </h2>
+                <p className="text-sm text-[#5E5648]">Review steps generated for "{title}". Modify or add steps before approval.</p>
+              </div>
+
+              <Button variant="secondary" size="sm" onClick={handleAddStep} icon={Plus}>
+                Add Step
               </Button>
             </div>
 
-            {editableSteps.map((stepObj, idx) => (
-              <Card key={stepObj.id || idx} className="space-y-4 p-6 border-slate-800">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex items-center gap-3">
-                    <span className="h-9 w-9 rounded-full bg-indigo-950 text-indigo-300 border border-indigo-800 font-bold text-sm flex items-center justify-center shrink-0">
+            <div className="space-y-4">
+              {editableSteps.map((stepItem, idx) => (
+                <div key={idx} className="p-5 rounded-xl bg-[#EDE8D8] border border-[#CBC3B2] space-y-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="h-8 w-8 rounded-lg bg-[#1F150C] text-[#FFFFFF] font-bold text-sm flex items-center justify-center shrink-0">
                       {idx + 1}
                     </span>
-                    <span className="text-xs font-mono text-slate-400">Order: #{idx + 1}</span>
-                  </div>
-
-                  {/* Move & Delete Actions */}
-                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={stepItem.title}
+                      onChange={(e) => handleStepTitleChange(idx, e.target.value)}
+                      className="flex-1 h-[50px] px-4 bg-[#FAF8F2] border border-[#CBC3B2] rounded-xl text-base font-bold text-[#1F150C] focus:outline-none focus:border-[#1F150C]"
+                    />
                     <button
-                      type="button"
-                      disabled={idx === 0}
-                      onClick={() => handleMoveStep(idx, -1)}
-                      className="p-2.5 rounded-xl bg-slate-800 text-slate-300 hover:text-white disabled:opacity-30 min-w-[44px] min-h-[44px] flex items-center justify-center"
-                      title="Move Up"
-                    >
-                      <ArrowUp className="w-5 h-5" />
-                    </button>
-                    <button
-                      type="button"
-                      disabled={idx === editableSteps.length - 1}
-                      onClick={() => handleMoveStep(idx, 1)}
-                      className="p-2.5 rounded-xl bg-slate-800 text-slate-300 hover:text-white disabled:opacity-30 min-w-[44px] min-h-[44px] flex items-center justify-center"
-                      title="Move Down"
-                    >
-                      <ArrowDown className="w-5 h-5" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleDeleteStep(idx)}
-                      className="p-2.5 rounded-xl bg-rose-950/60 text-rose-300 hover:bg-rose-900/60 min-w-[44px] min-h-[44px] flex items-center justify-center"
-                      title="Delete Step"
+                      onClick={() => handleRemoveStep(idx)}
+                      className="p-2 text-[#5E5648] hover:text-[#B3261E] hover:bg-[#FAF8F2] rounded-lg"
                     >
                       <Trash2 className="w-5 h-5" />
                     </button>
                   </div>
+
+                  <textarea
+                    rows={2}
+                    value={stepItem.objective}
+                    onChange={(e) => handleStepObjectiveChange(idx, e.target.value)}
+                    placeholder="Step objective..."
+                    className="w-full min-h-[90px] p-3 bg-[#FAF8F2] border border-[#CBC3B2] rounded-xl text-base text-[#1F150C] focus:outline-none focus:border-[#1F150C] leading-relaxed"
+                  />
                 </div>
+              ))}
+            </div>
 
-                {/* Editable Inputs */}
-                <div className="space-y-3 pt-2">
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold text-slate-300">Step Title</label>
-                    <input
-                      type="text"
-                      value={stepObj.title}
-                      onChange={(e) => handleStepChange(idx, 'title', e.target.value)}
-                      className="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-base font-bold text-slate-100 focus:outline-none focus:border-indigo-500"
-                    />
-                  </div>
+            <div className="flex items-center justify-between pt-4 border-t border-[#CBC3B2]">
+              <Button variant="ghost" size="md" onClick={() => setStep(1)}>
+                Back to Formulation
+              </Button>
 
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold text-slate-300">Step Description</label>
-                    <textarea
-                      rows={2}
-                      value={stepObj.description}
-                      onChange={(e) => handleStepChange(idx, 'description', e.target.value)}
-                      className="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-sm text-slate-200 focus:outline-none focus:border-indigo-500 leading-relaxed"
-                    />
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold text-indigo-300">Target Objective</label>
-                    <input
-                      type="text"
-                      value={stepObj.objective}
-                      onChange={(e) => handleStepChange(idx, 'objective', e.target.value)}
-                      className="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-sm text-indigo-200 focus:outline-none focus:border-indigo-500"
-                    />
-                  </div>
-                </div>
-              </Card>
-            ))}
-          </div>
+              <Button variant="success" size="lg" onClick={handleApprovePlan} icon={CheckCircle2}>
+                Approve Plan & Proceed to Documents
+              </Button>
+            </div>
+          </Card>
         </div>
       )}
     </div>

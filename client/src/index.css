@@ -1,46 +1,74 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
 @import "tailwindcss";
 
 @layer base {
   html {
     font-size: 16px;
-    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
-    background-color: #020617;
-    color: #e2e8f0;
-    line-height: 1.6;
+    font-family: 'Inter', Georgia, -apple-system, sans-serif;
+    background-color: #EDE8D8;
+    color: #1F150C;
+    line-height: 1.7;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
 
   body {
-    background-color: #020617;
-    color: #cbd5e1;
-    font-size: 1rem;
-    line-height: 1.6;
+    background-color: #EDE8D8;
+    color: #1F150C;
+    font-size: 1rem; /* 16px */
+    line-height: 1.7;
     overflow-x: hidden;
   }
 
-  /* Improved Typography Defaults */
-  h1, h2, h3, h4, h5, h6 {
-    color: #f8fafc;
+  /* Executive Typography Scale System */
+  h1 {
+    font-size: 2.5rem; /* 40px Display */
+    line-height: 1.25;
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    color: #1F150C;
+  }
+
+  h2 {
+    font-size: 2rem; /* 32px Page Title */
+    line-height: 1.3;
+    font-weight: 700;
+    letter-spacing: -0.025em;
+    color: #1F150C;
+  }
+
+  h3 {
+    font-size: 1.5rem; /* 24px Section Title */
+    line-height: 1.35;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: #1F150C;
+  }
+
+  h4 {
+    font-size: 1.25rem; /* 20px Card Title */
+    line-height: 1.4;
+    font-weight: 600;
     letter-spacing: -0.015em;
+    color: #1F150C;
   }
 }
 
-/* Custom Scrollbar Styling */
+/* Warm Paper Luxury Scrollbars */
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #090d16;
+  background: #EDE8D8;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #1e293b;
+  background: #CBC3B2;
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #334155;
+  background: #7A6A4F;
 }
