@@ -37,8 +37,6 @@ export const NewResearch = () => {
     }
 
     try {
-      console.log('[DEBUG NewResearch] Request payload:', { title, researchQuestion, context: contextInput });
-      
       // 1. Create Research Project in MongoDB
       const resData = await createResearchProject({ title, researchQuestion, context: contextInput });
       const researchId = resData?.research?._id || resData?._id;
@@ -48,20 +46,12 @@ export const NewResearch = () => {
         return;
       }
 
-      console.log('[DEBUG NewResearch] Research project created with ID:', researchId);
-
       // 2. Generate AI Research Plan
-      console.log('[DEBUG NewResearch] Requesting AI Plan generation for researchId:', researchId);
       const planRes = await generateAIPlan(researchId);
-      console.log('[DEBUG NewResearch] Raw AI Plan response:', planRes);
-
       const planSteps = planRes?.steps || [];
-      console.log('[DEBUG NewResearch] React state after parsing (planSteps):', planSteps);
-      console.log('[DEBUG NewResearch] Data sent to UI (steps count):', planSteps.length);
 
       // 3. STEP VALIDATION SAFEGUARD: Never navigate to Step 2 unless at least one valid research plan step exists!
       if (!planSteps || !Array.isArray(planSteps) || planSteps.length === 0) {
-        console.error('[DEBUG NewResearch] Plan generation returned empty steps array! Staying on Step 1.');
         showToast('Plan generation returned no steps. Please try again.', 'error');
         return; // STAY ON STEP 1!
       }

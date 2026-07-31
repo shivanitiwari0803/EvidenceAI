@@ -352,9 +352,6 @@ export const ResearchProvider = ({ children }) => {
       context = param3;
     }
 
-    console.log('[DEBUG Frontend] researchQuestion value immediately before validation:', researchQuestion);
-    console.log('[DEBUG Frontend] Payload immediately before API request:', { title, researchQuestion, context });
-
     setLoading(true);
     try {
       const res = await researchApi.createResearch({ title, researchQuestion, context });
@@ -441,7 +438,6 @@ export const ResearchProvider = ({ children }) => {
   const approveResearchPlan = async (planId, steps) => {
     setLoading(true);
     try {
-      console.log('[DEBUG Frontend] Data sent to UI / Saving approved plan to MongoDB:', { planId, steps });
       if (steps && Array.isArray(steps) && steps.length > 0) {
         await planApi.updatePlan(planId, steps);
       }

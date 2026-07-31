@@ -1,7 +1,8 @@
 import axios from 'axios';
+import { API_URL } from '../config/apiConfig.js';
 
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || '/api',
+  baseURL: API_URL,
   timeout: 60000, // 60-second request timeout for AI LLM pipelines
   headers: {
     'Content-Type': 'application/json',
@@ -33,7 +34,7 @@ api.interceptors.response.use(
     if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
       message = 'Request timed out after 60 seconds. The AI engine took longer than expected to process your request.';
     } else if (error.message === 'Network Error' || error.code === 'ERR_NETWORK') {
-      message = 'Network Server Unavailable. Unable to connect to the backend server.';
+      message = 'Backend server is currently unreachable. Please check if the Render instance is active.';
     }
 
     const customError = {
