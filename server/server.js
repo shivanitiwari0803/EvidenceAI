@@ -21,11 +21,41 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 const CLIENT_URL = process.env.CLIENT_URL || 'http://localhost:5173';
 
-// CORS Middleware
-app.use(cors({
-  origin: CLIENT_URL,
-  credentials: true
-}));
+// Dynamic CORS Configuration for Production Vercel & Local Development
+const allowedOrigins = [
+  'http://localhost:5173',
+  'http://localhost:3000',
+  'http://127.0.0.1:5173',
+  CLIENT_URL.replace(/\/+$/, '')
+].filter(Boolean);
+
+const corsOptions = {
+  origin: (origin, callback) => {
+    // 1. Allow requests with no Origin header (health checks, Render pings, Postman, cURL)
+    if (!origin) {
+      return callback(null, true);
+    }
+
+    const cleanOrigin = origin.replace(/\/+$/, '');
+
+    // 2. Allow exact match, configured CLIENT_URL, or Vercel preview subdomains
+    const isAllowed = allowedOrigins.includes(cleanOrigin) ||
+      allowedOrigins.some(allowed => allowed && cleanOrigin.startsWith(allowed)) ||
+      /\.vercel\.app$/i.test(cleanOrigin);
+
+    if (isAllowed) {
+      return callback(null, true);
+    }
+
+    logInfo('CORS', `Blocked request from unapproved origin: "${origin}"`);
+    return callback(new Error(`CORS policy violation: Origin '${origin}' is not allowed.`));
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+};
+
+app.use(cors(corsOptions));
 
 // Body Parsers
 app.use(express.json({ limit: '10mb' }));
