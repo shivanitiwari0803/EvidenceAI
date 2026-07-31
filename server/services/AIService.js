@@ -26,9 +26,8 @@ export class AIService {
    * Structured Fallback Plan Generator ensuring zero hanging states.
    */
   static fallbackPlanGenerator(researchQuestion, context) {
-    const qLower = researchQuestion.toLowerCase();
-
-    return [
+    console.log('[DEBUG Backend] Utilizing fallback plan generator for question:', researchQuestion);
+    const steps = [
       {
         id: 'step-1',
         title: 'Problem Framing & Boundary Definition',
@@ -56,8 +55,18 @@ export class AIService {
         description: 'Synthesize findings into an evidence-backed research brief with explicit citation references.',
         objective: 'Produce verified technical brief with complete citation tracing.',
         order: 4
+      },
+      {
+        id: 'step-5',
+        title: 'Empirical Verification & Stakeholder Governance Review',
+        description: 'Conduct final audit of evidence quality metrics, unanswered questions, and strategic recommendations.',
+        objective: 'Validate complete audit trail prior to enterprise stakeholder sign-off.',
+        order: 5
       }
     ];
+
+    console.log('[DEBUG Backend] Fallback Plan Steps Generated:', steps);
+    return steps;
   }
 }
 

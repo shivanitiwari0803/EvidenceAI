@@ -19,7 +19,7 @@ import { useToast } from '../context/ToastContext';
 
 export const NewResearch = () => {
   const navigate = useNavigate();
-  const { createResearchProject, currentPlan, approveResearchPlan, loading } = useResearch();
+  const { createResearchProject, generateAIPlan, currentPlan, approveResearchPlan, loading, generatingPlan } = useResearch();
   const { showToast } = useToast();
 
   const [step, setStep] = useState(1);
@@ -37,12 +37,42 @@ export const NewResearch = () => {
     }
 
     try {
-      const resData = await createResearchProject(title, researchQuestion, contextInput);
-      setCreatedResearchId(resData.research._id);
-      setEditableSteps(resData.plan.steps || []);
-      setStep(2);
+      console.log('[DEBUG NewResearch] Request payload:', { title, researchQuestion, context: contextInput });
+      
+      // 1. Create Research Project in MongoDB
+      const resData = await createResearchProject({ title, researchQuestion, context: contextInput });
+      const researchId = resData?.research?._id || resData?._id;
+
+      if (!researchId) {
+        showToast('Failed to initialize research project.', 'error');
+        return;
+      }
+
+      console.log('[DEBUG NewResearch] Research project created with ID:', researchId);
+
+      // 2. Generate AI Research Plan
+      console.log('[DEBUG NewResearch] Requesting AI Plan generation for researchId:', researchId);
+      const planRes = await generateAIPlan(researchId);
+      console.log('[DEBUG NewResearch] Raw AI Plan response:', planRes);
+
+      const planSteps = planRes?.steps || [];
+      console.log('[DEBUG NewResearch] React state after parsing (planSteps):', planSteps);
+      console.log('[DEBUG NewResearch] Data sent to UI (steps count):', planSteps.length);
+
+      // 3. STEP VALIDATION SAFEGUARD: Never navigate to Step 2 unless at least one valid research plan step exists!
+      if (!planSteps || !Array.isArray(planSteps) || planSteps.length === 0) {
+        console.error('[DEBUG NewResearch] Plan generation returned empty steps array! Staying on Step 1.');
+        showToast('Plan generation returned no steps. Please try again.', 'error');
+        return; // STAY ON STEP 1!
+      }
+
+      setCreatedResearchId(researchId);
+      setEditableSteps(planSteps);
+      setStep(2); // NAVIGATE TO STEP 2 ONLY WHEN VALID STEPS EXIST!
     } catch (err) {
-      // toast shown in context
+      console.error('[DEBUG NewResearch] Plan generation failed:', err);
+      showToast(err.message || 'Failed to generate AI Research Plan. Please retry.', 'error');
+      // STAY ON STEP 1!
     }
   };
 
@@ -170,11 +200,11 @@ export const NewResearch = () => {
                 type="submit"
                 variant="primary"
                 size="lg"
-                disabled={loading}
-                icon={loading ? Loader2 : Sparkles}
-                className={loading ? 'animate-spin' : ''}
+                disabled={loading || generatingPlan}
+                icon={loading || generatingPlan ? Loader2 : Sparkles}
+                className={loading || generatingPlan ? 'animate-spin' : ''}
               >
-                {loading ? 'Generating AI Execution Plan...' : 'Generate Execution Plan'}
+                {loading || generatingPlan ? 'Generating AI Execution Plan...' : 'Generate Execution Plan'}
               </Button>
             </div>
           </Card>

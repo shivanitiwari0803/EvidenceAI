@@ -342,13 +342,25 @@ export const ResearchProvider = ({ children }) => {
   /**
    * Create a new research project.
    */
-  const createResearchProject = async ({ title, researchQuestion, context }) => {
+  const createResearchProject = async (param1, param2, param3) => {
+    let title, researchQuestion, context;
+    if (typeof param1 === 'object' && param1 !== null) {
+      ({ title, researchQuestion, context } = param1);
+    } else {
+      title = param1;
+      researchQuestion = param2;
+      context = param3;
+    }
+
+    console.log('[DEBUG Frontend] researchQuestion value immediately before validation:', researchQuestion);
+    console.log('[DEBUG Frontend] Payload immediately before API request:', { title, researchQuestion, context });
+
     setLoading(true);
     try {
       const res = await researchApi.createResearch({ title, researchQuestion, context });
       if (res?.success) {
-        setCurrentResearch(res.data);
-        setCurrentPlan(null);
+        setCurrentResearch(res.data.research || res.data);
+        setCurrentPlan(res.data.plan || null);
         setDocuments([]);
         setEvidences([]);
         setCurrentBrief(null);
@@ -424,11 +436,15 @@ export const ResearchProvider = ({ children }) => {
   };
 
   /**
-   * Approve Plan.
+   * Approve Plan with optional edited steps update.
    */
-  const approveCurrentPlan = async (planId) => {
+  const approveResearchPlan = async (planId, steps) => {
     setLoading(true);
     try {
+      console.log('[DEBUG Frontend] Data sent to UI / Saving approved plan to MongoDB:', { planId, steps });
+      if (steps && Array.isArray(steps) && steps.length > 0) {
+        await planApi.updatePlan(planId, steps);
+      }
       const res = await planApi.approvePlan(planId);
       if (res?.success) {
         setCurrentPlan(res.data.plan);
@@ -437,11 +453,18 @@ export const ResearchProvider = ({ children }) => {
         return res.data;
       }
     } catch (err) {
-      showToast(err.message || 'Failed to approve plan', 'error');
+      showToast(err.message || 'Failed to approve research plan', 'error');
       throw err;
     } finally {
       setLoading(false);
     }
+  };
+
+  /**
+   * Approve Plan.
+   */
+  const approveCurrentPlan = async (planId) => {
+    return approveResearchPlan(planId);
   };
 
   /**
@@ -496,6 +519,7 @@ export const ResearchProvider = ({ children }) => {
         generateAIPlan,
         updatePlanSteps,
         approveCurrentPlan,
+        approveResearchPlan,
         fetchHistory,
         setCurrentResearch,
         setCurrentPlan

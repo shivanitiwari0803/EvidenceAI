@@ -79,7 +79,7 @@ Research Question: "${researchQuestion}"
 ${context ? `Research Context: "${context}"` : ''}
 
 Task:
-Generate a structured, logical research execution plan containing between 3 and 7 steps.
+Generate a structured, logical research execution plan containing between 5 and 7 steps.
 Each step must be actionable, clear, and focused on empirical evaluation.
 
 Respond STRICTLY in VALID JSON ONLY matching this format:
@@ -95,19 +95,26 @@ Respond STRICTLY in VALID JSON ONLY matching this format:
   ]
 }`;
 
+    console.log('[DEBUG Backend] Request Payload for Plan:', { researchQuestion, context });
+    console.log('[DEBUG Backend] AI Prompt:', prompt);
+
     const rawText = await this.callGemini({ endpoint: 'RESEARCH_PLAN_GENERATION', prompt, temperature: 0.2 });
+    console.log('[DEBUG Backend] Raw AI Response before parsing:\n', rawText);
+
     const cleaned = rawText.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/, '').trim();
 
     try {
       const parsed = JSON.parse(cleaned);
-      if (parsed && Array.isArray(parsed.steps) && parsed.steps.length >= 3) {
-        return parsed.steps.map((s, idx) => ({
+      if (parsed && Array.isArray(parsed.steps) && parsed.steps.length >= 1) {
+        const formattedSteps = parsed.steps.map((s, idx) => ({
           id: s.id || `step-${idx + 1}`,
           title: s.title || `Step ${idx + 1}: Execution Phase`,
           description: s.description || 'Perform empirical audit and evidence collection.',
           objective: s.objective || 'Verify system boundaries.',
           order: idx + 1
         }));
+        console.log('[DEBUG Backend] Parsed Research Plan Steps:', formattedSteps);
+        return formattedSteps;
       }
     } catch (parseErr) {
       logWarn('GEMINI_SERVICE', `JSON parse retry for Research Plan: ${parseErr.message}`);
@@ -234,30 +241,69 @@ Respond STRICTLY in VALID JSON ONLY:
   }
 
   /**
-   * Answers a user RAG chat prompt using Gemini Flash.
+   * Answers a user RAG chat prompt using Gemini Flash with multi-turn conversation memory & intent awareness.
    */
-  static async generateRAGChatResponse({ userPrompt, evidences, documents, researchQuestion }) {
+  static async generateRAGChatResponse({
+    userPrompt,
+    intent = 'GENERAL_EVIDENCE_RETRIEVAL',
+    evidences = [],
+    documents = [],
+    researchQuestion = '',
+    conversationHistory = [],
+    previousAssistantMessage = null,
+    plan = null,
+    brief = null
+  }) {
     const getDocName = (docId) => {
       const doc = documents.find(d => String(d._id) === String(docId));
       return doc ? doc.filename : 'Document Source';
     };
 
     const evidenceContext = evidences.map((ev, i) =>
-      `[Source ${i + 1} - ${getDocName(ev.documentId)}]: "${ev.excerpt}" (Classification: ${ev.classification}, Confidence: ${ev.confidence}%)`
+      `[Source ${i + 1} - ${getDocName(ev.documentId)}]: "${ev.excerpt}" (Classification: ${ev.classification || 'Supporting'}, Confidence: ${ev.confidence || 85}%, Reason: ${ev.reason || 'N/A'})`
     ).join('\n\n');
 
-    const prompt = `You are EvidenceAI, an Evidence-Based Research Assistant.
-Research Question: "${researchQuestion}"
-User Query: "${userPrompt}"
+    const historyContext = conversationHistory.slice(-6).map(m =>
+      `${m.role === 'user' ? 'User' : 'Assistant'}: "${m.content.slice(0, 300)}"`
+    ).join('\n');
+
+    const prompt = `You are EvidenceAI, an Enterprise Evidence-Based Research Assistant.
+Primary Research Question: "${researchQuestion}"
+Detected Query Intent: "${intent}"
+
+Recent Multi-Turn Conversation History:
+${historyContext || 'No previous conversation turns.'}
+
+${previousAssistantMessage ? `Previous Assistant Response: "${previousAssistantMessage.content.slice(0, 500)}"` : ''}
 
 Retrieved Empirical Evidence:
-${evidenceContext}
+${evidenceContext || 'No relevant document evidence retrieved.'}
 
-RULES:
-1. Answer the question ONLY using the retrieved evidence above.
-2. NEVER use external model knowledge or invent unverified facts.
-3. If the evidence is insufficient to answer completely, state clearly that evidence is insufficient.
-4. Mention source document names in your answer.`;
+TASK & CONVERSATIONAL INSTRUCTIONS:
+1. Multi-Turn Context: Interpret the User Query ("${userPrompt}") in full context of recent conversation turns and previous assistant responses.
+2. If Intent is "CITATION_REQUEST": Do NOT re-answer from scratch. Return the exact source documents, chunk IDs, evidence classifications, and confidence scores used in the previous answer.
+3. If Intent is "SUMMARY_REQUEST": Summarize the previous answer & retrieved evidence clearly and concisely.
+4. If Intent is "REASONING_REQUEST": Explain the underlying technical reasoning behind the previous answer using empirical evidence.
+5. If Intent is "CONFLICT_ANALYSIS": Highlight only conflicting empirical claims, trade-offs, or contradictions.
+6. If Intent is "SUPPORTING_ANALYSIS": Focus on supporting evidence and strongest metrics.
+7. Strict Grounding: Use ONLY retrieved evidence or provided conversation history. NEVER invent facts or use external knowledge.
+8. If Query is Out-of-Scope: Respond EXACTLY: "This question cannot be answered using the uploaded research documents."
+
+FORMAT YOUR RESPONSE IN HIGH-END ENTERPRISE MARKDOWN:
+### Answer
+[Detailed evidence-grounded answer]
+
+### Evidence Breakdown
+- **Supporting**: [Count] claims
+- **Conflicting**: [Count] claims
+- **Insufficient**: [Count] claims
+
+### Sources & Citations
+- 📄 **[Document Name]** — *[Classification]* ([Confidence]% Confidence)
+  > "[Excerpt text]"
+
+### Confidence Score
+**[Calculated Overall Confidence %]%** — Grounded strictly in uploaded research documents.`;
 
     const answer = await this.callGemini({ endpoint: 'RAG_CHAT_RESPONSE', prompt, temperature: 0.1 });
     return answer;

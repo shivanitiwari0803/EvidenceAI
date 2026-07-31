@@ -14,11 +14,15 @@ export class ResearchService {
    * Creates a new research project in MongoDB.
    */
   static async createResearch({ title, researchQuestion, context }) {
+    console.log('[DEBUG Backend] researchQuestion value immediately before validation:', researchQuestion);
     if (!researchQuestion || researchQuestion.trim().length < 10) {
+      console.log('[DEBUG Backend] Validation failed for researchQuestion:', researchQuestion);
       throw new ApiError(400, 'Research question is required and must be at least 10 characters.');
     }
 
     const researchTitle = title && title.trim() ? title.trim() : 'Untitled Research Project';
+
+    console.log('[DEBUG Backend] Payload immediately before API response/DB write:', { title: researchTitle, researchQuestion, context });
 
     const research = await Research.create({
       title: researchTitle,
