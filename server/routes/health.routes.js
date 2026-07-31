@@ -1,8 +1,12 @@
 import { Router } from 'express';
-import { checkHealth } from '../controllers/health.controller.js';
+import { getRootStatus, getHealthStatus } from '../controllers/health.controller.js';
 
 const router = Router();
 
-router.get('/health', checkHealth);
+// GET / - Root Welcome & Status
+router.get('/', getRootStatus);
+
+// GET /health - System Health Check
+router.get('/health', getHealthStatus);
 
 export default router;

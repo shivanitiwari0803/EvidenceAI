@@ -1,12 +1,28 @@
+import mongoose from 'mongoose';
 import { asyncHandler } from '../middleware/asyncHandler.js';
-import { sendSuccess } from '../utils/apiResponse.js';
 
-export const checkHealth = asyncHandler(async (req, res) => {
-  sendSuccess(res, 200, {
-    service: 'EvidenceAI Research Assistant API',
-    status: 'UP',
-    environment: process.env.NODE_ENV || 'development',
-    uptime: process.uptime(),
-    timestamp: new Date().toISOString()
-  }, 'Health check passed');
+/**
+ * Root GET / Endpoint Status
+ */
+export const getRootStatus = asyncHandler(async (req, res) => {
+  res.status(200).json({
+    status: 'OK',
+    message: 'EvidenceAI Backend is running',
+    version: '1.0.0'
+  });
 });
+
+/**
+ * Health GET /health Endpoint Status
+ */
+export const getHealthStatus = asyncHandler(async (req, res) => {
+  const dbState = mongoose.connection && mongoose.connection.readyState === 1 ? 'connected' : 'disconnected';
+  res.status(200).json({
+    status: 'healthy',
+    database: dbState,
+    uptime: process.uptime()
+  });
+});
+
+// Backward compatibility checkHealth alias
+export const checkHealth = getHealthStatus;

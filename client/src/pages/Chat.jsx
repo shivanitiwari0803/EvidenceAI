@@ -32,8 +32,8 @@ import { useResearch } from '../context/ResearchContext';
 import { useToast } from '../context/ToastContext';
 
 /**
- * MEMOIZED PAST MESSAGE ITEM COMPONENT
- * Ensures past messages have 0 re-renders when sending/receiving new messages.
+ * HIGH-PERFORMANCE MEMOIZED PAST MESSAGE ITEM COMPONENT
+ * Custom equality check ensures 0 re-renders of past messages during scrolling or new message dispatches.
  */
 const MessageItem = React.memo(({
   msg,
@@ -202,7 +202,15 @@ const MessageItem = React.memo(({
       )}
     </div>
   );
-});
+}, (prev, next) => (
+  prev.msg._id === next.msg._id &&
+  prev.msg.content === next.msg.content &&
+  prev.isLast === next.isLast &&
+  prev.copiedIdx === next.copiedIdx &&
+  prev.isLiked === next.isLiked &&
+  prev.isDisliked === next.isDisliked &&
+  prev.isShowSources === next.isShowSources
+));
 
 export const Chat = () => {
   const { researchId: paramResearchId } = useParams();
@@ -233,6 +241,7 @@ export const Chat = () => {
   const chatContainerRef = useRef(null);
   const messagesEndRef = useRef(null);
   const textareaRef = useRef(null);
+  const isUserAtBottomRef = useRef(true);
 
   useEffect(() => {
     fetchHistory();
@@ -246,25 +255,31 @@ export const Chat = () => {
     }
   }, [activeResId, history, currentResearch, loadResearch]);
 
-  // Instant non-blocking scroll to bottom
+  // Non-blocking scroll to bottom
   const scrollToBottom = useCallback(() => {
     if (chatContainerRef.current) {
       chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
     }
+    isUserAtBottomRef.current = true;
     setIsUserAtBottom(true);
   }, []);
 
-  // Auto-scroll when chat messages change or loading state changes
-  useEffect(() => {
-    scrollToBottom();
-  }, [chatMessages, chatLoading, scrollToBottom]);
-
+  // Optimized Scroll Handler: Only triggers React re-render when boolean state ACTUALLY changes!
   const handleScroll = useCallback(() => {
     if (!chatContainerRef.current) return;
     const { scrollTop, scrollHeight, clientHeight } = chatContainerRef.current;
     const isBottom = scrollHeight - scrollTop - clientHeight < 100;
-    setIsUserAtBottom(isBottom);
+    isUserAtBottomRef.current = isBottom;
+
+    setIsUserAtBottom(prev => (prev !== isBottom ? isBottom : prev));
   }, []);
+
+  // Auto-scroll strictly when messages length or chat loading changes AND user is at bottom
+  useEffect(() => {
+    if (isUserAtBottomRef.current && chatContainerRef.current) {
+      chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+    }
+  }, [chatMessages.length, chatLoading]);
 
   // Auto-growing textarea handler
   const handleTextareaChange = useCallback((e) => {
@@ -288,7 +303,6 @@ export const Chat = () => {
     scrollToBottom();
 
     try {
-      // Direct API call — zero artificial setTimeout or typing loops!
       await sendChatMessage(currentResearch._id, userPrompt);
     } catch (err) {
       // Toast error handled in context
@@ -471,7 +485,7 @@ export const Chat = () => {
             </div>
           </div>
 
-          {/* Past Messages Stream (MEMOIZED COMPONENTS) */}
+          {/* Past Messages Stream (OPTIMIZED MEMOIZED COMPONENTS) */}
           {chatMessages.map((msg, idx) => (
             <MessageItem
               key={msg._id || idx}
