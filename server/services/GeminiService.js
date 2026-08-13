@@ -15,7 +15,7 @@ export class GeminiService {
       throw new ApiError(500, 'GEMINI_API_KEY environment variable is missing or not configured.');
     }
 
-    const modelsToTry = ['gemini-2.0-flash', 'gemini-2.5-flash'];
+   const modelsToTry = ['gemini-2.5-flash'];
     let lastError = null;
 
     for (const model of modelsToTry) {

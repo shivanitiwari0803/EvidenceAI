@@ -3,6 +3,10 @@ import { sendSuccess, sendError } from '../utils/apiResponse.js';
 import DocumentService from '../services/DocumentService.js';
 
 export const uploadDocument = asyncHandler(async (req, res) => {
+
+  console.log('🔥🔥 UPLOAD CONTROLLER - NEW CODE RUNNING');
+
+  
   const { researchId, textContent, filename: bodyFilename } = req.body;
   const file = req.file;
 

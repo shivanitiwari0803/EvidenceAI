@@ -15,7 +15,16 @@ export const researchApi = {
 
   getHistory: async () => {
     return await api.get('/history');
-  }
+  },
+  duplicateProject: async (id) => {
+    return await api.post(`/research/${id}/duplicate`);
+},
+toggleArchive: async (id, isArchived) => {
+    return await api.put(`/research/${id}/archive`, { isArchived });
+},
+deleteProject: async (id) => {
+    return await api.delete(`/research/${id}`);
+},
 };
 
 export default researchApi;

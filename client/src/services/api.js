@@ -9,6 +9,8 @@ const api = axios.create({
   },
 });
 
+console.log('🔥 EVIDENCEAI API URL:', API_URL);
+
 // Request Interceptor
 api.interceptors.request.use(
   (config) => {

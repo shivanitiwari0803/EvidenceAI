@@ -6,6 +6,7 @@ import { DocumentChunk } from '../models/DocumentChunk.js';
 import { Evidence } from '../models/Evidence.js';
 import { ApiError } from '../utils/apiResponse.js';
 import { logInfo, logWarn, logError } from '../middleware/logger.js';
+import EmbeddingService from './EmbeddingService.js';
 
 export class DocumentService {
   /**
@@ -97,51 +98,80 @@ export class DocumentService {
    * Splits a document into semantic chunks (~500 words, 75 overlap) and inserts them into MongoDB.
    */
   static async chunkDocument(doc) {
-    logInfo('DOCUMENT_SERVICE', `Chunking started for DocID=${doc._id}, Filename="${doc.filename}"...`);
+    console.log('🔥 NEW chunkDocument() CODE IS RUNNING');
+  logInfo(
+    'DOCUMENT_SERVICE',
+    `Chunking started for DocID=${doc._id}, Filename="${doc.filename}"...`
+  );
 
-    const words = doc.rawText.split(/\s+/).filter(Boolean);
-    const chunkSize = 500;
-    const overlap = 75;
-    const stepSize = chunkSize - overlap;
+  const words = doc.rawText.split(/\s+/).filter(Boolean);
 
-    const chunkDocs = [];
-    let chunkNumber = 1;
+  const chunkSize = 500;
+  const overlap = 75;
+  const stepSize = chunkSize - overlap;
 
-    for (let start = 0; start < words.length; start += stepSize) {
-      const end = Math.min(start + chunkSize, words.length);
-      const chunkWords = words.slice(start, end);
-      const chunkText = chunkWords.join(' ');
+  const chunkDocs = [];
+  let chunkNumber = 1;
 
-      if (chunkText.trim().length === 0) continue;
+  for (let start = 0; start < words.length; start += stepSize) {
+    const end = Math.min(start + chunkSize, words.length);
 
-      chunkDocs.push({
-        documentId: doc._id,
-        researchId: doc.researchId,
-        chunkNumber,
-        text: chunkText,
-        startPosition: start,
-        endPosition: end
-      });
+    const chunkWords = words.slice(start, end);
+    const chunkText = chunkWords.join(' ');
 
-      chunkNumber++;
-
-      if (end >= words.length) break;
+    if (!chunkText.trim()) {
+      continue;
     }
 
-    let createdChunks = [];
-    if (chunkDocs.length > 0) {
-      createdChunks = await DocumentChunk.insertMany(chunkDocs);
+    logInfo(
+      'DOCUMENT_SERVICE',
+      `Generating embedding for DocID=${doc._id}, Chunk=${chunkNumber}`
+    );
+
+    const embedding =
+      await EmbeddingService.generateDocumentEmbedding(chunkText);
+
+      console.log(
+  '🔥 EMBEDDING GENERATED:',
+  embedding?.length
+);
+
+    chunkDocs.push({
+      documentId: doc._id,
+      researchId: doc.researchId,
+      chunkNumber,
+      text: chunkText,
+      startPosition: start,
+      endPosition: end,
+      embedding
+    });
+
+    chunkNumber++;
+
+    if (end >= words.length) {
+      break;
     }
-
-    // Update document status & chunk count in MongoDB
-    doc.chunkCount = createdChunks.length;
-    doc.status = 'PROCESSED';
-    await doc.save();
-
-    logInfo('DOCUMENT_SERVICE', `[DB_WRITE] Chunks inserted into collection 'documentchunks': DocID=${doc._id}, ChunksInserted=${createdChunks.length}. [Timestamp: ${new Date().toISOString()}]`);
-
-    return createdChunks;
   }
+
+  let createdChunks = [];
+
+  if (chunkDocs.length > 0) {
+    createdChunks = await DocumentChunk.insertMany(chunkDocs);
+  }
+
+  doc.chunkCount = createdChunks.length;
+  doc.status = 'PROCESSED';
+
+  await doc.save();
+
+  logInfo(
+    'DOCUMENT_SERVICE',
+    `[DB_WRITE] Chunks inserted into collection 'documentchunks': ` +
+    `DocID=${doc._id}, ChunksInserted=${createdChunks.length}.`
+  );
+
+  return createdChunks;
+}
 
   /**
    * Retrieves all documents for a research project from MongoDB.
