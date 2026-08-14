@@ -274,12 +274,16 @@ export const Chat = () => {
     setIsUserAtBottom(prev => (prev !== isBottom ? isBottom : prev));
   }, []);
 
-  // Auto-scroll strictly when messages length or chat loading changes AND user is at bottom
-  useEffect(() => {
-    if (isUserAtBottomRef.current && chatContainerRef.current) {
-      chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
-    }
-  }, [chatMessages.length, chatLoading]);
+  // Auto-scroll only when a new message is added.
+// Do not react to chatLoading changes.
+useEffect(() => {
+  if (!chatContainerRef.current) return;
+
+  if (isUserAtBottomRef.current) {
+    chatContainerRef.current.scrollTop =
+      chatContainerRef.current.scrollHeight;
+  }
+}, [chatMessages.length]);
 
   // Auto-growing textarea handler
   const handleTextareaChange = useCallback((e) => {

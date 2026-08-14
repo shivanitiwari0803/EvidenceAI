@@ -1,6 +1,12 @@
+import dotenv from 'dotenv';
+
+dotenv.config({
+  path: '../.env'
+});
+
 import express from 'express';
 import cors from 'cors';
-import dotenv from 'dotenv';
+
 import { connectDB } from './config/database.js';
 import { requestLogger, logInfo } from './middleware/logger.js';
 import { notFoundHandler, errorHandler } from './middleware/errorHandler.js';
@@ -14,8 +20,6 @@ import chatRoutes from './routes/chat.routes.js';
 import evidenceRoutes from './routes/evidence.routes.js';
 import searchRoutes from './routes/search.routes.js';
 import settingsRoutes from './routes/settings.routes.js';
-
-dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 5000;

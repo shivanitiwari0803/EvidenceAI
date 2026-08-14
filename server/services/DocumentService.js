@@ -129,22 +129,39 @@ export class DocumentService {
     );
 
     const embedding =
-      await EmbeddingService.generateDocumentEmbedding(chunkText);
+  await EmbeddingService.generateDocumentEmbedding(chunkText);
 
-      console.log(
-  '🔥 EMBEDDING GENERATED:',
+console.log(
+  '🔥 EMBEDDING DEBUG:',
+  'isArray =',
+  Array.isArray(embedding),
+  'length =',
   embedding?.length
 );
 
-    chunkDocs.push({
-      documentId: doc._id,
-      researchId: doc.researchId,
-      chunkNumber,
-      text: chunkText,
-      startPosition: start,
-      endPosition: end,
-      embedding
-    });
+const embeddingArray = Array.from(embedding);
+
+if (embeddingArray.length !== 768) {
+  throw new ApiError(
+    500,
+    `Invalid embedding dimension. Expected 768, received ${embeddingArray.length}.`
+  );
+}
+
+console.log(
+  '🔥 EMBEDDING ARRAY READY:',
+  embeddingArray.length
+);
+
+chunkDocs.push({
+  documentId: doc._id,
+  researchId: doc.researchId,
+  chunkNumber,
+  text: chunkText,
+  startPosition: start,
+  endPosition: end,
+  embedding: embeddingArray
+});
 
     chunkNumber++;
 
@@ -156,8 +173,13 @@ export class DocumentService {
   let createdChunks = [];
 
   if (chunkDocs.length > 0) {
-    createdChunks = await DocumentChunk.insertMany(chunkDocs);
-  }
+  createdChunks = await DocumentChunk.insertMany(chunkDocs);
+
+  console.log(
+    '🔥 DB EMBEDDING DEBUG:',
+    createdChunks[0]?.embedding?.length
+  );
+}
 
   doc.chunkCount = createdChunks.length;
   doc.status = 'PROCESSED';

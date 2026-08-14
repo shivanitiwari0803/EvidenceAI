@@ -244,16 +244,17 @@ Respond STRICTLY in VALID JSON ONLY:
    * Answers a user RAG chat prompt using Gemini Flash with multi-turn conversation memory & intent awareness.
    */
   static async generateRAGChatResponse({
-    userPrompt,
-    intent = 'GENERAL_EVIDENCE_RETRIEVAL',
-    evidences = [],
-    documents = [],
-    researchQuestion = '',
-    conversationHistory = [],
-    previousAssistantMessage = null,
-    plan = null,
-    brief = null
-  }) {
+  userPrompt,
+  intent = 'GENERAL_EVIDENCE_RETRIEVAL',
+  evidences = [],
+  retrievedChunks = [],
+  documents = [],
+  researchQuestion = '',
+  conversationHistory = [],
+  previousAssistantMessage = null,
+  plan = null,
+  brief = null
+}) {
     const getDocName = (docId) => {
       const doc = documents.find(d => String(d._id) === String(docId));
       return doc ? doc.filename : 'Document Source';
@@ -262,6 +263,14 @@ Respond STRICTLY in VALID JSON ONLY:
     const evidenceContext = evidences.map((ev, i) =>
       `[Source ${i + 1} - ${getDocName(ev.documentId)}]: "${ev.excerpt}" (Classification: ${ev.classification || 'Supporting'}, Confidence: ${ev.confidence || 85}%, Reason: ${ev.reason || 'N/A'})`
     ).join('\n\n');
+    const vectorContext = retrievedChunks
+  .map((chunk, i) => {
+    const docName = getDocName(chunk.documentId);
+
+    return `[Retrieved Source ${i + 1} - ${docName} - Chunk ${chunk.chunkNumber} - Similarity Score: ${chunk.score?.toFixed(4) || 'N/A'}]:
+"${chunk.text}"`;
+  })
+  .join('\n\n');
 
     const historyContext = conversationHistory.slice(-6).map(m =>
       `${m.role === 'user' ? 'User' : 'Assistant'}: "${m.content.slice(0, 300)}"`
@@ -276,6 +285,9 @@ ${historyContext || 'No previous conversation turns.'}
 
 ${previousAssistantMessage ? `Previous Assistant Response: "${previousAssistantMessage.content.slice(0, 500)}"` : ''}
 
+Retrieved Vector Search Context:
+${vectorContext || 'No relevant vector-search context retrieved.'}
+
 Retrieved Empirical Evidence:
 ${evidenceContext || 'No relevant document evidence retrieved.'}
 
@@ -286,7 +298,10 @@ TASK & CONVERSATIONAL INSTRUCTIONS:
 4. If Intent is "REASONING_REQUEST": Explain the underlying technical reasoning behind the previous answer using empirical evidence.
 5. If Intent is "CONFLICT_ANALYSIS": Highlight only conflicting empirical claims, trade-offs, or contradictions.
 6. If Intent is "SUPPORTING_ANALYSIS": Focus on supporting evidence and strongest metrics.
-7. Strict Grounding: Use ONLY retrieved evidence or provided conversation history. NEVER invent facts or use external knowledge.
+7. Strict Grounding:
+Use ONLY the retrieved vector-search context, retrieved empirical evidence, and provided conversation history.
+Prioritize the retrieved vector-search context when answering the user's question.
+NEVER invent facts, use external knowledge, or make claims unsupported by the retrieved sources.
 8. If Query is Out-of-Scope: Respond EXACTLY: "This question cannot be answered using the uploaded research documents."
 
 FORMAT YOUR RESPONSE IN HIGH-END ENTERPRISE MARKDOWN:

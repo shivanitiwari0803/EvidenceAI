@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import RetrievalService from './RetrievalService.js';
 import { ChatMessage } from '../models/ChatMessage.js';
 import { ResearchService } from './ResearchService.js';
 import { EvidenceService } from './EvidenceService.js';
@@ -133,6 +134,20 @@ export class ChatService {
     const evidences = await EvidenceService.getEvidenceByResearchId(researchId);
     const documents = await DocumentService.getDocumentsByResearchId(researchId);
 
+
+    const retrievedChunks =
+  await RetrievalService.retrieveRelevantChunks(
+    researchId,
+    userPrompt,
+    5
+  );
+
+logInfo(
+  'CHAT_SERVICE',
+  `Vector retrieval returned ${retrievedChunks.length} relevant chunks`
+);
+
+
     const getDocName = (docId) => {
       const doc = documents.find(d => String(d._id) === String(docId));
       return doc ? doc.filename : 'Document Source';
@@ -189,14 +204,15 @@ export class ChatService {
       if (process.env.GEMINI_API_KEY) {
         try {
           assistantContent = await GeminiService.generateRAGChatResponse({
-            userPrompt,
-            intent,
-            evidences: filteredEvidences,
-            documents,
-            researchQuestion: research.researchQuestion,
-            conversationHistory: history,
-            previousAssistantMessage: previousAssistantMsg
-          });
+  userPrompt,
+  intent,
+  evidences: filteredEvidences,
+  retrievedChunks,
+  documents,
+  researchQuestion: research.researchQuestion,
+  conversationHistory: history,
+  previousAssistantMessage: previousAssistantMsg
+});
         } catch (apiErr) {
           logError('CHAT_SERVICE', `Gemini RAG Chat error: ${apiErr.message}`);
         }
