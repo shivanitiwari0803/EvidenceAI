@@ -127,46 +127,105 @@ Respond STRICTLY in VALID JSON ONLY matching this format:
    * Classifies a document chunk as Supporting, Conflicting, Mixed / Neutral, or Insufficient using Gemini Flash.
    */
   static async classifyEvidence({ step, chunkText, docName }) {
-    const prompt = `You are a Research Evidence Classifier.
-Step Objective: "${step.title}" - ${step.objective}
-Document Chunk (${docName}): "${chunkText.slice(0, 1500)}"
+  const prompt = `You are a strict research evidence classifier.
 
-Task:
-Determine if this document chunk contains evidence for the step objective.
+Step Objective:
+"${step.title}" - ${step.objective}
+
+Document:
+"${docName}"
+
+Document Chunk:
+"${chunkText.slice(0, 1500)}"
+
+Your job is to determine whether this chunk contains DIRECT and SPECIFIC evidence relevant to the step objective.
+
+IMPORTANT RULES:
+
+1. Do NOT assume relevance based on a few similar words.
+2. Do NOT infer missing information.
+3. A chunk is relevant only if its actual content can be used as evidence for the objective.
+4. If the chunk discusses a different topic, return isRelevant: false.
+5. If relevance is weak, indirect, vague, or uncertain, return isRelevant: false.
+6. Never classify an irrelevant chunk as Supporting.
+7. Only classify the relationship between the chunk and the objective.
+8. The excerpt must be copied exactly from the provided chunk.
+
+Return STRICT JSON only.
+
+If irrelevant:
+
+{
+  "isRelevant": false,
+  "excerpt": null,
+  "classification": "Irrelevant",
+  "confidence": 0,
+  "reason": "The chunk does not provide direct evidence for the step objective."
+}
+
 If relevant:
-1. Extract the exact relevant excerpt string (max 250 chars).
-2. Classify as "Supporting", "Conflicting", "Mixed / Neutral", or "Insufficient".
-3. Provide confidence score (0 to 100).
-4. Provide a brief reason for this classification.
 
-Respond STRICTLY in VALID JSON ONLY:
 {
   "isRelevant": true,
-  "excerpt": "Extracted sentence...",
-  "classification": "Supporting",
-  "confidence": 92,
-  "reason": "Directly provides benchmark metrics matching the objective."
+  "excerpt": "exact text copied from the document",
+  "classification": "Supporting | Conflicting | Mixed / Neutral | Insufficient",
+  "confidence": 0,
+  "reason": "Brief explanation based only on the chunk."
 }`;
 
-    try {
-      const rawText = await this.callGemini({ endpoint: 'EVIDENCE_CLASSIFICATION', prompt, temperature: 0.1 });
-      const cleaned = rawText.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/, '').trim();
-      const parsed = JSON.parse(cleaned);
+  try {
+    const rawText = await this.callGemini({
+      endpoint: 'EVIDENCE_CLASSIFICATION',
+      prompt,
+      temperature: 0
+    });
 
-      if (parsed && parsed.isRelevant && ['Supporting', 'Conflicting', 'Mixed / Neutral', 'Insufficient'].includes(parsed.classification)) {
-        return {
-          isRelevant: true,
-          excerpt: parsed.excerpt || chunkText.slice(0, 200) + '...',
-          classification: parsed.classification,
-          confidence: Math.min(100, Math.max(0, Number(parsed.confidence) || 85)),
-          reason: parsed.reason || 'Semantic relevance matching step objective.'
-        };
-      }
-    } catch (err) {
-      logWarn('GEMINI_SERVICE', `Evidence classification warning: ${err.message}`);
+    const cleaned = rawText
+      .replace(/^```json\s*/i, '')
+      .replace(/^```\s*/i, '')
+      .replace(/\s*```$/, '')
+      .trim();
+
+    const parsed = JSON.parse(cleaned);
+
+    if (!parsed || parsed.isRelevant !== true) {
+      return null;
     }
+
+    const validClassifications = [
+      'Supporting',
+      'Conflicting',
+      'Mixed / Neutral',
+      'Insufficient'
+    ];
+
+    if (!validClassifications.includes(parsed.classification)) {
+      return null;
+    }
+
+    const confidence = Number(parsed.confidence);
+
+    if (!Number.isFinite(confidence) || confidence < 0 || confidence > 100) {
+      return null;
+    }
+
+    return {
+      isRelevant: true,
+      excerpt: parsed.excerpt?.trim() || null,
+      classification: parsed.classification,
+      confidence,
+      reason: parsed.reason?.trim() || 'No reason provided.'
+    };
+
+  } catch (err) {
+    logWarn(
+      'GEMINI_SERVICE',
+      `Evidence classification warning: ${err.message}`
+    );
+
     return null;
   }
+}
 
   /**
    * Synthesizes a 12-section Research Brief using Gemini Flash.
@@ -260,10 +319,65 @@ Respond STRICTLY in VALID JSON ONLY:
       return doc ? doc.filename : 'Document Source';
     };
 
-    const evidenceContext = evidences.map((ev, i) =>
-      `[Source ${i + 1} - ${getDocName(ev.documentId)}]: "${ev.excerpt}" (Classification: ${ev.classification || 'Supporting'}, Confidence: ${ev.confidence || 85}%, Reason: ${ev.reason || 'N/A'})`
-    ).join('\n\n');
-    const vectorContext = retrievedChunks
+    const evidenceContext = evidences
+  .filter(ev => ev && ev.excerpt)
+  .map((ev, i) => {
+    const confidence = Number(ev.confidence);
+
+    return `[Source ${i + 1} - ${getDocName(ev.documentId)}]:
+"${ev.excerpt}"
+
+Classification: ${ev.classification ?? 'Unknown'}
+Confidence: ${
+  Number.isFinite(confidence)
+    ? `${confidence}%`
+    : 'Not available'
+}
+Reason: ${ev.reason ?? 'Not available'}`;
+  })
+  .join('\n\n');
+
+
+  console.log(
+  '[RAG DEBUG] Retrieved chunks:',
+  retrievedChunks.map(chunk => ({
+    chunkNumber: chunk.chunkNumber,
+    score: chunk.score,
+    preview: chunk.text?.slice(0, 100)
+  }))
+);
+
+    const MIN_RELEVANCE_SCORE = 0.7;
+
+const relevantChunks = retrievedChunks.filter((chunk) => {
+  const score = Number(chunk.score);
+
+  return (
+    chunk &&
+    chunk.text &&
+    Number.isFinite(score) &&
+    score >= MIN_RELEVANCE_SCORE
+  );
+});
+
+// THE NO-EVIDENCE CHECK HERE
+if (relevantChunks.length === 0 && evidences.length === 0) {
+  return `### Answer
+
+No relevant evidence was found in the uploaded research documents.
+
+### Evidence Breakdown
+- **Supporting**: 0 claims
+- **Conflicting**: 0 claims
+- **Insufficient**: 0 claims
+
+### Sources & Citations
+No relevant sources were retrieved.
+
+### Evidence Confidence
+Insufficient`;
+}
+    const vectorContext = relevantChunks
   .map((chunk, i) => {
     const docName = getDocName(chunk.documentId);
 
@@ -317,8 +431,15 @@ FORMAT YOUR RESPONSE IN HIGH-END ENTERPRISE MARKDOWN:
 - 📄 **[Document Name]** — *[Classification]* ([Confidence]% Confidence)
   > "[Excerpt text]"
 
-### Confidence Score
-**[Calculated Overall Confidence %]%** — Grounded strictly in uploaded research documents.`;
+### Evidence Confidence
+Describe the strength of the available evidence as one of:
+- High
+- Moderate
+- Low
+- Insufficient
+
+Do NOT invent a numerical confidence percentage.
+Base the assessment only on the number, relevance, consistency, and quality of retrieved evidence. — Grounded strictly in uploaded research documents.`;
 
     const answer = await this.callGemini({ endpoint: 'RAG_CHAT_RESPONSE', prompt, temperature: 0.1 });
     return answer;
